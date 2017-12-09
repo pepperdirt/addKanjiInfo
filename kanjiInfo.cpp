@@ -22,7 +22,10 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2017/12/10  - Version 0.1.2
+	-Last Updated:2017/12/10  - Version 0.1.3
+	                            Checks for Extra file [Sentences] (-E ) existance.
+	                            Compile error fixed.
+                              - Version 0.1.2
 	                            Error message for missing files are correct now.
 	                          - Version 0.1.1
 	                            Added: outputs to STDOUT if no output file given.
@@ -231,9 +234,9 @@ int main(const int argc, const char **const argv) {
     }
     
     // check for files
-    if( !cvsFile.fileLen() )          { std::cout << "Error. Input file("<<inputFile<<") not found!\n"; return 1<<5; }
+    if( !cvsFile.getFileLength() )          { std::cout << "Error. Input file("<<inputFile<<") not found!\n"; return 1<<5; }
     if( !Jmdict.fileLen() )           { std::cout << "Error. "<<JMDICT<<" not found!\n"; return 1<<6; }
-    if( !kanjiDict2.getFileLength() ) { std::cout << "Error. "<<KANJIDICT2<<" not found!\n"; return 1<<7; }
+    if( !kanjiDict2.fileLen() ) { std::cout << "Error. "<<KANJIDICT2<<" not found!\n"; return 1<<7; }
 
     unsigned char *GZIP_HEADER = (unsigned char *)"\x1F\x8B\x08";
     if( 1==1 ) { 
@@ -289,6 +292,10 @@ int main(const int argc, const char **const argv) {
     delimVect.push_back( delim2 );
     delimVect.push_back( delim3 );
     ParseFileClass parseFile( sentences );
+
+    if( (KHelpFLAGS & S_FLAG) && !parseFile.getFileLength() ) {  
+        std::cout << "Error. Input file("<<sentences<<") not found!\n"; return 1<<9;
+    }
 
     // Now the logic for doing the things (2 paths):
     //     -I, -F   ( it's own funciton all together ), output to file furiganizing field specified
