@@ -22,7 +22,9 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2017/12/10  - Version 0.1.1
+	-Last Updated:2017/12/10  - Version 0.1.2
+	                            Error message for missing files are correct now.
+	                          - Version 0.1.1
 	                            Added: outputs to STDOUT if no output file given.
                                 Fixed: Closed file after opening
                               - Version 0.1.0
@@ -229,9 +231,9 @@ int main(const int argc, const char **const argv) {
     }
     
     // check for files
-    if( !Jmdict.fileLen() )        { std::cout << "Error. Input file("<<inputFile<<") not found!\n"; return 1<<5; }
-    if( !kanjiDict2.fileLen() )    { std::cout << "Error. "<<JMDICT<<" not found!\n"; return 1<<6; }
-    if( !cvsFile.getFileLength() ) { std::cout << "Error. "<<KANJIDICT2<<" not found!\n"; return 1<<7; }
+    if( !cvsFile.fileLen() )          { std::cout << "Error. Input file("<<inputFile<<") not found!\n"; return 1<<5; }
+    if( !Jmdict.fileLen() )           { std::cout << "Error. "<<JMDICT<<" not found!\n"; return 1<<6; }
+    if( !kanjiDict2.getFileLength() ) { std::cout << "Error. "<<KANJIDICT2<<" not found!\n"; return 1<<7; }
 
     unsigned char *GZIP_HEADER = (unsigned char *)"\x1F\x8B\x08";
     if( 1==1 ) { 
@@ -340,8 +342,6 @@ int main(const int argc, const char **const argv) {
     
         
         
-//        std::size_t numEntries = numLines( cvsFile );
-//        for(pos = cvsFile.getLine(buff, FIELD_LEN_MAX, delim);
         int fieldNumber = 1;
         int fieldsSelected_SIZE = fieldsToSearch.size();
 
