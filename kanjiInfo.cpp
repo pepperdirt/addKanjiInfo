@@ -66,6 +66,15 @@ void version(const char **const argv);
 
 std::size_t numLines(ParseFileClass & file);
 std::size_t largestDelimField(ParseFileClass & file, const unsigned char *delim);
+
+std::vector<std::size_t> posOfKanji(ParseFileClass &, unsigned char *);
+std::vector<std::size_t> findOffsetFromPos(ParseFileClass &FILE,
+                                           std::vector<std::size_t> pos,
+                                           std::vector<ustring> s,
+                                           int searchDirection = 0);
+std::size_t largestSize(std::vector<std::size_t> begOff,
+                        std::vector<std::size_t> endOff );
+
 int main(const int argc, const char **const argv) {
 
     if( argc == 1 ) { help(); return 0; }
@@ -105,7 +114,7 @@ int main(const int argc, const char **const argv) {
     const char HEADER[4]= { 0xEF, 0xBB, 0xBF, 0x00 };
     const unsigned char *YOMI_DELIM = (unsigned char *)"\xE3\x83\xBB";
     unsigned int errorNo = 0;
-        
+    int NUMBER_OF_SENTENCES_TO_ADD = 3;
 //    kanjiDB::jmdict_InfoClass *Jmdict = 0;// ( jmdict );
 //    kanjiDB::kanjiDict2_InfoClass *kanjiDict2 = 0; // ( KANJIDICT2 );
 
@@ -132,7 +141,9 @@ int main(const int argc, const char **const argv) {
 //                            MAIN_TRANSLATE_HEADER = (unsigned char *)"\0";
                             const unsigned char *END_MAIN_TRANSLATE = (unsigned char *)"</label><br>";
 //                            END_MAIN_TRANSLATE = (unsigned char *)"<br>";
-    
+
+                            const unsigned char *SENTENCES_ADDED_HEADER = (unsigned char *)"<label class=\"sentences\">";
+                            const unsigned char *END_SENTENCES_ADDED = (unsigned char *)"</label>";
     
 
     // USER INPUT
@@ -248,6 +259,9 @@ int main(const int argc, const char **const argv) {
                             END_MAIN_COMPOUND = BR;                 // Need newline between yomis;
                             MAIN_TRANSLATE_HEADER = NULL_CHAR;
                             END_MAIN_TRANSLATE = BR;
+                            
+                            SENTENCES_ADDED_HEADER = NULL_CHAR;
+                            END_SENTENCES_ADDED = NULL_CHAR; 
     }
     // END USER INPUT    
 
@@ -320,12 +334,73 @@ int main(const int argc, const char **const argv) {
         std::size_t kanjiPos = 0;
         unsigned char kanji[4];
         std::vector<ustring> AddToFieldSelected;
+        std::vector<ustring> sentenceToAdd;
         
         while( (pos = cvsFile.getLine(buff, FIELD_LEN_MAX, delim)) )
         {
+
             // Increment through file, keeping track of what Delim num
             // Currently on;
             
+            // if sentences switch used, and field is FIRST(ONLY) field in fieldToSearch,
+            if( (KHelpFLAGS & S_FLAG) &&  printToField == fieldsToSearch[0] ) { 
+                std::size_t beforeKanji = 0;
+                std::vector<std::size_t> kanjipositions = posOfKanji(parseFile, (unsigned char *)buff);
+                std::vector<std::size_t> endOff = findOffsetFromPos(parseFile,
+                                                                    kanjipositions,
+                                                                    delimVect,
+                                                                    0); // forwards search;
+                
+                std::vector<std::size_t> begOff = findOffsetFromPos(parseFile,
+                                                                    kanjipositions,
+                                                                    delimVect,
+                                                                    1); // backwards search;
+                
+                std::size_t MAX_SIZE_OFFSETS = largestSize( begOff, endOff );
+                sentenceToAdd.push_back( SENTENCES_ADDED_HEADER );
+                
+                unsigned char holdSentence[MAX_SIZE_OFFSETS+1];
+                std::size_t numSentences = begOff.size();
+                int numAdded = 0;
+                std::size_t prevKanji = 0;
+                
+                // Grab NUMBER_OF_SENTENCES_TO_ADD number of sentences ( if avaliable );
+                for(std::size_t asdf = 0; asdf < numSentences 
+                                       && numAdded < NUMBER_OF_SENTENCES_TO_ADD; asdf++) {
+                    parseFile.setGetPointer( begOff[asdf]  );
+                    
+                    // Check for duplicate ( same position listed 2x or more )
+                    if( beforeKanji !=  begOff[asdf] ) { 
+                        parseFile.read( holdSentence, 
+                                        ( endOff[asdf] - begOff[asdf] )
+                                      );
+                        
+                        // Add Furigana?
+                        if( (KHelpFLAGS & F_FLAG) ) { 
+                            unsigned int MAX_LEN_FURIGANAIZED = 1800;
+                            unsigned char furiganaizedSentence[ MAX_LEN_FURIGANAIZED + 1 ];
+                        
+                            Jmdict.addFurigana(holdSentence, 
+                                               furiganaizedSentence, 
+                                               MAX_LEN_FURIGANAIZED);
+                            sentenceToAdd.push_back( furiganaizedSentence );
+                        } 
+                        else { 
+                            sentenceToAdd.push_back( holdSentence );
+                        }
+                        sentenceToAdd.push_back( delim3 );
+                        sentenceToAdd.push_back( BR );
+                        sentenceToAdd.push_back( BR );
+
+                        beforeKanji =  begOff[asdf];
+                        numAdded++;
+                    }
+                }
+                sentenceToAdd.push_back( END_SENTENCES_ADDED );
+                sentenceToAdd.push_back( BR ); 
+                sentenceToAdd.push_back( BR );
+            }
+
             for(int field=0;field<fieldsSelected_SIZE;field++) { 
                 
                 // Fields to Search through are listed in filedToSearch[]; 
@@ -505,6 +580,19 @@ int main(const int argc, const char **const argv) {
 
                     // Print out Extra information for Field i+1;                    
                     if( i+1 == printToField ) { 
+                        // Start field by printing Sentences!
+                        unsigned int sentenceSIZE = sentenceToAdd.size();
+                        if( sentenceSIZE ) { 
+                            for(unsigned int sentence_counter = 0; sentence_counter < sentenceSIZE; sentence_counter++ ) 
+                            {
+                                // Actually not a sentence. Actually pieces of them;
+                                out << sentenceToAdd[ sentence_counter ];
+                            }
+                            
+                            sentenceToAdd.clear();
+                        }
+                        
+                        
                         int vectorSize = AddToFieldSelected.size();
 
                         for(int j=0; j < vectorSize; j++)
@@ -746,12 +834,12 @@ std::cout << "Insert Kanji info into .cvs file.\n"
 		<< "  -P\tInserts all kanji data to specified field. (Default is 2).\n"
 		<< "  -F\tAdd Furigana to field number. BEFORE adding extra information\n"
 		<< "  -K\tKanji info to add to cards.\n"
-		<< "\t F: Add furigana to inserted data\n"
+		<< "\t F: Add furigana to inserted data (Only adds furigana to sentences [-K S])\n"
 		<< "\t O: Add on-yomi for Kanjis\n"
 		<< "\t K: Add kun-yomi for Kanjis\n"
 		<< "\t T: Add translation of Kanji\n"
 		<< "\t Y: Add translation to all Kun-Yomi\n"
-		<< "\t S: Add sentences that contain kanjis(from 1st field only)\n"
+		<< "\t S: Add sentences that contain whole field from [-S ]\n"
 		<< "\t Sentences requires the use of switch -E to extract sentences from\n"
 		<< "  -E\tExtra sentences to extract based on words/Kanji in Field(s) -S\n"
 		<< "  -M\tAdd markup(HTML) to format output ( for use in Anki )\n"
@@ -815,3 +903,178 @@ std::size_t largestDelimField(ParseFileClass & file, const unsigned char *delim)
 }
 
 
+std::vector<std::size_t> posOfKanji(ParseFileClass &FILE,
+                                    unsigned char *s)
+{
+    std::vector<std::size_t> posFound;
+    std::size_t isNextMatchFound = 0;
+    const unsigned char endDelim[] = "\0";
+    
+    while( isNextMatchFound = FILE.findPos( s, endDelim )  ) {  
+        posFound.push_back( isNextMatchFound );
+        FILE.setGetPointer(isNextMatchFound+1);
+    }
+    
+    return posFound; 
+}
+
+
+// Returns vector of positions;
+//  Positions are offsets from POS[0] of file(* FILE);
+//  Returns offset supplied if no match found ( std::vector pos ); 
+
+// Use Parse File Class == arg1
+// arg2: starting position
+// arg3: str to look for from pos(arg2);
+// arg4 direction of serch( + or - );
+// Returns position found; ( 1st[CLOSEST] found in vector s;
+std::vector<std::size_t> findOffsetFromPos(ParseFileClass &FILE,
+                                           std::vector<std::size_t> pos,
+                                           std::vector<ustring> s,
+                                           int searchDirection) // 0 == +; 1 == negative search direction
+{
+    int sign = 1;
+    if( searchDirection ) { sign = -1; } 
+
+    std::vector<std::size_t> posFound;
+    std::size_t isNextMatchFound = 0;
+    std::size_t counter = 0;
+    const std::size_t S_SIZE = s.size();
+    const std::size_t SIZE = pos.size();
+    const unsigned char endDelim[] = "\0";
+    std::size_t found = 0;
+    std::size_t smallestFound = 0;
+    
+    std::size_t iter = 0;
+    while( counter < SIZE ) { 
+        FILE.setGetPointer( pos[counter] );
+        smallestFound = 0;
+
+        iter = 0;
+        while( iter < S_SIZE ) {
+            const unsigned char **hold_ustring = ((const unsigned char **)&s[iter]);
+            // ** If s[iter] is !found, will return 0( beg of file );  
+            found = FILE.findPos( hold_ustring[0],
+                                  endDelim,
+                                  0,
+                                  searchDirection);
+
+            // period: "\xE3\x80\x82";                                  
+            if( found && hold_ustring[0][0] // at least 3 index values avaliable.
+                      && hold_ustring[0][1]
+                      && hold_ustring[0][0] == 0xE3 
+                      && hold_ustring[0][1] == 0x80 
+                      && hold_ustring[0][2] == 0x82   ) {
+            
+                std::size_t pos2 = found;
+                if(  searchDirection ) { // (-) direction
+                    pos2-= 3; // go back delimLen in attempt to find period again;
+                } else {
+                    pos2+= 3; // Skip delim(period); in attempt to find periond again;
+                }                             
+                
+                const std::size_t SAVED_POS = FILE.getPositionPointer();
+                FILE.setGetPointer(pos2 );
+                
+                if( FILE.findPos( hold_ustring[0],
+                              endDelim,
+                              0,
+                              searchDirection)
+                 == pos2 ) 
+                { 
+                    // Search until first pos is NOT enter char(JPN);
+                    // (first char: curr position; (MULTIPLE period SKIP; Not end delim ));
+                    while( 
+                    (found = FILE.findPos( hold_ustring[0],
+                                  endDelim,
+                                  0,
+                                  searchDirection)
+                    ) == pos2 ) 
+                    { 
+                        if( !found || found < 3 ) { break; }
+                        if(  searchDirection ) { // (-) direction
+                            found-= 3; // go back delimLen in attempt to find period again;
+                        } else {
+                            found+= 3; // Skip delim(period); in attempt to find periond again;
+                        }                             
+                        
+                        FILE.setGetPointer( found );
+                        pos2 = found; 
+                        
+                    }
+                } // END IF;
+                
+                FILE.setGetPointer(SAVED_POS);
+            }
+
+            // Skips delim character ( in (NEGATIVE) direcion );
+            if( searchDirection  ) {
+                if( found ) { 
+                    int lengthustring = 0;
+                    while( hold_ustring[0][lengthustring] ) { lengthustring++; }
+                    found += lengthustring;
+                }
+            }
+            
+            if( !smallestFound || 
+                (sign * found) < (sign * smallestFound) ) { 
+                // Search direction deterimines if smaller or
+                // larger value ( value closest to original Point( setGetPointer() )
+                if( found ) { 
+                    smallestFound = found; 
+                } else { 
+                    if( searchDirection ) { 
+                        // NEGATIVE search direction ( possible 0 );
+    
+                        // Verify if match found at 0 or no match found
+                        FILE.setGetPointer( 0 );
+                        unsigned char tmpchar[3+1];
+                        
+                        // Command will read input (UNTIL delim str(arg3) is found)
+                        // If arg3 is found at pos(0), will not fill tmpchar with anyhting; 
+                        FILE.getLine(tmpchar,
+                                     3,
+                                     ((const unsigned char **)&s[iter])[0] );
+                        if( tmpchar[0] == '\0' ) {
+                            // Was indeed found at position 0.  
+                            smallestFound = 0;
+                        }
+                        FILE.setGetPointer( pos[counter] );
+                    }
+                }
+            }
+            iter++; 
+        }
+        
+        
+        // Fix Positive search to AT LEAST be equal to starting pos; 
+        if( !searchDirection && !smallestFound ) {
+            posFound.push_back( pos[counter] );
+        } 
+        else { // Negative direction form offset;  
+            posFound.push_back( smallestFound );
+        }
+        counter++;
+    }
+    
+    return posFound; 
+}
+
+std::size_t largestSize(std::vector<std::size_t> begOff,
+                        std::vector<std::size_t> endOff )
+{
+    std::size_t largestDifference = 0;
+    std::size_t difference =0;
+    const std::size_t SIZE = begOff.size();
+    
+    for(std::size_t i=0; i < SIZE; i++) { 
+        difference = endOff[i] - begOff[i];
+
+        if( difference > largestDifference ) 
+        { 
+            largestDifference = difference;  
+        }
+    }
+    
+    return largestDifference;
+}
