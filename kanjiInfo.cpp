@@ -22,7 +22,13 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2017/11/16  - Version 0.0.1
+	-Last Updated:2017/12/10  - Version 0.1.0
+	                            Added support for Switch -K S:
+                                      Add sentences to Output;
+	                            Added support for Switch -K F:
+                                      Adds furigana to Sentences added ( -K S );
+                                      Two switches are used in conjunction.
+                              - Version 0.0.1
   
 */
     enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=0,VERSION_=1 };
