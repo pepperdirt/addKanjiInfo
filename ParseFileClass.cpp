@@ -2,6 +2,9 @@
 
   const char ParseFileClass_VERSION[]= "2.0.1";
 /*
+ * Programmer:	Pepperdirt
+ * github:	github.com/pepperdirt
+ *
          Latest update 2017/12/07 - Version 2.0.1
 				    Fixed Bug: doesn't crash for passing nulled string in constructor; 
 				    Version 2.0.0

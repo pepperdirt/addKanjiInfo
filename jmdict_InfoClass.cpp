@@ -20,6 +20,9 @@ namespace kanjiDB {
 
   const char jmdict_InfoClass_VERSION[]= "0.0.1";
 /*
+ * Programmer:	Pepperdirt
+ * github:	github.com/pepperdirt
+ *
          Latest update 2017/11/17 - Version 0.0.1
 */
 
