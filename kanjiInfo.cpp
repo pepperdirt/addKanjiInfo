@@ -1,0 +1,814 @@
+#include <iostream>
+#include <fstream>
+#include "jmdict_InfoClass.cpp" // furiganize();
+// # include ParseFileClass_VERSION[]= "2.0.1";
+// # include jmdict_InfoClass_VERSION[]= "0.0.1";
+#include "kanjiDict2_InfoClass.cpp"
+// # include kanjiDict2_InfoClass_VERSION[]= "0.0.1";
+// # include ParseFileClass_VERSION[]= "2.0.1";
+
+
+
+/* 
+  * CLI FOR ADDING KANJI INFO TO INPUT FILE;
+  * NOTxAPI FOR ACCESSING KANJI INFORMATION.
+  *  - ACCESSES KANJICHALLENGECOMPLETE DICTS
+  *    + READINGS / ENGLISH MEANING / COMPOUNDS / HELP
+  *  - ACCESSES KANJI JMDICT DICTS
+  *    + READINGS / ENGLISH MEANING / COMPOUNDS / OTHER? 
+  *
+*/
+/*
+	-Last Updated:2017/11/16  - Version 0.0.1
+  
+*/
+    enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=0,VERSION_=1 };
+    enum COMMAND_SWITCHES { 
+         I_IN_FILE=1, D_Delim=2, 
+         S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS=3,
+         P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P=4, 
+         F_FURIGANIZE_BEFORE_ADDING_EXTRA_INFO=5,
+         K_HELP_TO_ADD_KANJI_SWITCHES_TO_ACTUALLY_ADD_TO_FILE_F_O_K_S_T_Y=6, 
+         M_MARKUP_SPECIFIER_ADD_HTML_MARKUP__DEFAULTS_TO_NO_MARKUP=7,
+         O_OUT_FILE=8,
+         N_NUMBER_OF_FIELDS=9,
+         C_CONVERT_OUTPUT_FILE_DELIMINATOR__THIS_CAN_DIFFER_FROM_ORIGINAL_DELIM=10,
+         E_EXTRA_SENTENCES=11,
+         J_JMDICT = 12,
+         W_KANJIDICT2=13,
+         H_help=14,
+         V_version=15,
+         END_TERMINATOR=0
+    };
+    enum K_HELP_FLAGS { F_FLAG = 0x01, O_FLAG = 0x02, K_FLAG = 0x04, S_FLAG = 0x08, T_FLAG = 0x10, Y_FLAG=0x20 };
+
+std::ostream& operator << (std::ostream& stream, const ustring& str) {
+//    if (const auto len = str.size())
+int len = str.size();
+       stream.write(reinterpret_cast<const char*>(&str[0]), len);
+    return stream;
+}  
+
+
+
+// std::size_t findPos( const unsigned char *const s, const unsigned char *const pin, const std::size_t index );
+std::size_t strToNum(const char *const s, const std::size_t index, const int len );
+void numToStr(char *const retStr, const std::size_t i);
+int strNumlen(const char *s, const std::size_t index );
+void help(); 
+void getSwitchIndex( unsigned int *const ret, const int argc, const char **const argv );
+void getInputFieldNums( std::vector<int>, const char **const argv, const int index );
+unsigned int grabFLAG_FROM_KHELP( const int argc, const char **const argv, const int index );
+void version(const char **const argv);
+
+std::size_t numLines(ParseFileClass & file);
+std::size_t largestDelimField(ParseFileClass & file, const unsigned char *delim);
+int main(const int argc, const char **const argv) {
+
+    if( argc == 1 ) { help(); return 0; }
+//std::vector<ustring> test;
+//    const unsigned char **tt = ((const unsigned char **)&test[0]);    
+    
+    unsigned int switchIndexes[V_version+2];
+    for(int i=0; i <= V_version; i++) { switchIndexes[ i ] = '\0'; } 
+    switchIndexes[ V_version+1 ] = '\0';
+    getSwitchIndex( 
+        switchIndexes,
+        argc,
+        argv
+    );
+
+    if( switchIndexes[ H_help ]    ) { help(); return 0; }
+    if( switchIndexes[ V_version ] ) { version(argv); return 0; }
+    const char *KANJIDICT2 = "kanjidic2.xml";
+    const char *JMDICT = "JMdict.xml"; 
+//    const char *JMDICT_ALL_LANGS = "JMdict_e_ALL_LANGUAGES.gz";
+    
+
+    
+    // Default value; Can be overridden by UserInput; 
+    const char *ENTER = "\x0A";
+    const char *outFile = "kanjiInfo.cvs";
+    const unsigned char *delim  = (const unsigned char *)"\x0A";
+    const unsigned char *outDelim=(const unsigned char *)"\x0A";
+    std::vector<int> fieldsToSearch;
+    const char *sentences = "\0"; // Random sentences, no format specified
+    const char *inputFile = "\0"; // .cvs file
+    int printToField = 2; // defaults to 2
+    int doFuriganize = 0;
+    int doMarkupFile = 0;
+    int numberOfFields = 3; // Defaults to 3
+    unsigned int KHelpFLAGS = 0x00; // BIT 0: F, BIT 1: O, BIT 2: K, BUT 3: S;
+    const char HEADER[4]= { 0xEF, 0xBB, 0xBF, 0x00 };
+    const unsigned char *YOMI_DELIM = (unsigned char *)"\xE3\x83\xBB";
+    unsigned int errorNo = 0;
+        
+//    kanjiDB::jmdict_InfoClass *Jmdict = 0;// ( jmdict );
+//    kanjiDB::kanjiDict2_InfoClass *kanjiDict2 = 0; // ( KANJIDICT2 );
+
+                            const unsigned char *MAIN_KANJI_HEADER = (unsigned char *)"<h1 class=\"main_kanji\">";
+//                            MAIN_KANJI_HEADER = (unsigned char *)"\0";
+                            const unsigned char *END_MAIN_KANJI = (unsigned char *)"</h1>";
+//                            END_MAIN_KANJI = (unsigned char *)"<br>"; // Needs Enter key after Kanji; 
+                            
+                            const unsigned char *MAIN_ONYOMI_HEADER = (unsigned char *)"<label class=\"main_onyomi\">";
+//                            MAIN_ONYOMI_HEADER = (unsigned char *)"\0"; 
+                            const unsigned char *END_MAIN_ONYOMI = (unsigned char *)"</label>";
+//                            END_MAIN_ONYOMI = (unsigned char *)"\0";                 // No newline between yomis;
+                            
+                            const unsigned char *MAIN_KUNYOMI_HEADER = (unsigned char *)"<label class=\"main_kunyomi\">";
+//                            MAIN_KUNYOMI_HEADER = (unsigned char *)"\0"; 
+                            const unsigned char *END_MAIN_KUNYOMI = (unsigned char *)"</label><br>";
+//                            END_MAIN_KUNYOMI = (unsigned char *)"<br>";                 // Need newline between yomis;
+                            
+                            const unsigned char *MAIN_COMPOUND_HEADER = (unsigned char *)"<label class=\"main_compounds\">";
+//                            MAIN_COMPOUND_HEADER = (unsigned char *)"\0"; 
+                            const unsigned char *END_MAIN_COMPOUND = (unsigned char *)"</label><br>";
+//                            END_MAIN_COMPOUND = (unsigned char *)"<br>";                 // Need newline between yomis;
+                            const unsigned char *MAIN_TRANSLATE_HEADER = (unsigned char *)"<label class=\"main_translation\">";
+//                            MAIN_TRANSLATE_HEADER = (unsigned char *)"\0";
+                            const unsigned char *END_MAIN_TRANSLATE = (unsigned char *)"</label><br>";
+//                            END_MAIN_TRANSLATE = (unsigned char *)"<br>";
+    
+    
+
+    // USER INPUT
+    if(switchIndexes[ I_IN_FILE ]  ) 
+        inputFile = argv[switchIndexes[ I_IN_FILE ]];
+    else
+    { 
+        std::cout << "Error. Requries an input file( -I )\n";
+        return 1; // Need input file to continue;
+    }
+    if(switchIndexes[ D_Delim ]  ) 
+        delim = (const unsigned char *)argv[switchIndexes[ D_Delim ]];
+    const int DELIM_SIZE = strlen( (const char *)delim );
+
+    if(switchIndexes[ C_CONVERT_OUTPUT_FILE_DELIMINATOR__THIS_CAN_DIFFER_FROM_ORIGINAL_DELIM ]  ) 
+        outDelim = (const unsigned char *)argv[switchIndexes[ C_CONVERT_OUTPUT_FILE_DELIMINATOR__THIS_CAN_DIFFER_FROM_ORIGINAL_DELIM ]];
+    const int OUT_DELIM_SIZE = strlen( (const char *)outDelim );
+
+    if(switchIndexes[ E_EXTRA_SENTENCES ]  ) 
+        sentences = argv[switchIndexes[ E_EXTRA_SENTENCES ]];
+    if(switchIndexes[ S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS ]  ) 
+        getInputFieldNums(
+                          fieldsToSearch, 
+                          argv, 
+                          switchIndexes[ S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS ]
+        );
+    if(switchIndexes[ P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P ]  ) 
+        printToField = 
+                     strToNum(
+                                argv[switchIndexes[ P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P ]],
+                                0,
+                                strNumlen( 
+                                            argv[switchIndexes[ P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P ]],
+                                            0
+                                         )
+                             );
+    if(switchIndexes[ F_FURIGANIZE_BEFORE_ADDING_EXTRA_INFO ]  ) 
+        doFuriganize = 
+                     strToNum(
+                                argv[switchIndexes[ F_FURIGANIZE_BEFORE_ADDING_EXTRA_INFO ]],
+                                0,
+                                strNumlen( 
+                                            argv[switchIndexes[ F_FURIGANIZE_BEFORE_ADDING_EXTRA_INFO ]],
+                                            0
+                                         )
+                             );
+    if(switchIndexes[ K_HELP_TO_ADD_KANJI_SWITCHES_TO_ACTUALLY_ADD_TO_FILE_F_O_K_S_T_Y ]  )
+        KHelpFLAGS = 
+                     grabFLAG_FROM_KHELP( argc,
+                                          argv, 
+                                          switchIndexes[ K_HELP_TO_ADD_KANJI_SWITCHES_TO_ACTUALLY_ADD_TO_FILE_F_O_K_S_T_Y ]
+                                        );
+
+    
+    // doMarkupFile = 1; would have sufficed; 
+    if(switchIndexes[ M_MARKUP_SPECIFIER_ADD_HTML_MARKUP__DEFAULTS_TO_NO_MARKUP ]  ) 
+        doMarkupFile = 1;
+    if(switchIndexes[ O_OUT_FILE ]  ) 
+        outFile = argv[switchIndexes[ O_OUT_FILE ]];
+    if(switchIndexes[ J_JMDICT ]  ) 
+        JMDICT = argv[switchIndexes[ J_JMDICT ]];
+    if(switchIndexes[ W_KANJIDICT2 ]  ) 
+        KANJIDICT2 = argv[switchIndexes[ W_KANJIDICT2 ]];
+
+
+    kanjiDB::jmdict_InfoClass Jmdict( JMDICT );
+    kanjiDB::kanjiDict2_InfoClass kanjiDict2( KANJIDICT2 );
+    ParseFileClass cvsFile( inputFile );
+    if( fieldsToSearch.size() == 0 ) { 
+        fieldsToSearch.push_back( 1 ); // Default value
+    }
+    
+    // check for files
+    if( !Jmdict.fileLen() )        { std::cout << "Error. Input file("<<inputFile<<") not found!\n"; return 1<<5; }
+    if( !kanjiDict2.fileLen() )    { std::cout << "Error. "<<JMDICT<<" not found!\n"; return 1<<6; }
+    if( !cvsFile.getFileLength() ) { std::cout << "Error. "<<KANJIDICT2<<" not found!\n"; return 1<<7; }
+
+    unsigned char *GZIP_HEADER = (unsigned char *)"\x1F\x8B\x08";
+    if( 1==1 ) { 
+//        unsigned char buff[4];
+//        // Test if GZIPPED
+//        Jmdict.readStr(buff, 3, 0);
+//        int i = 0;
+//        while( i<3 && buff[ i ] == GZIP_HEADER[ i ]  ){ i++; }
+        if( Jmdict.getKeySize() < 5 ) {  std::cout << "Error. "<<JMDICT<<" MUST BE unzipped/decompressed!\n"; return 1<<8; }
+        
+//        kanjiDict2.readStr(buff, 3, 0);
+        
+//        i=0;
+//        while( i<3 && buff[ i ] == GZIP_HEADER[ i ]  ){ i++; }
+        if( kanjiDict2.getKeySize() < 5 ) {  std::cout << "Error. "<<KANJIDICT2<<" MUST BE unzipped/decompressed!\n"; return 1<<9; }
+   
+//        
+//        kanjiDict2.getKeySize();
+    }
+
+
+    const unsigned char *NULL_CHAR = (unsigned char *)"\0";
+    const unsigned char *END_H1    = (unsigned char *)"</h1>";
+    const unsigned char *BR        = (unsigned char *)"<br>";
+    
+    if( !doMarkupFile ) { 
+                            MAIN_KANJI_HEADER = BR;
+                            END_MAIN_KANJI = BR; // Needs Enter key after Kanji; 
+                            
+                            MAIN_ONYOMI_HEADER = NULL_CHAR; 
+                            END_MAIN_ONYOMI = NULL_CHAR;                 // No newline between yomis;
+                            
+                            MAIN_KUNYOMI_HEADER = NULL_CHAR; 
+                            END_MAIN_KUNYOMI = BR;                 // Need newline between yomis;
+                            
+                            MAIN_COMPOUND_HEADER = NULL_CHAR; 
+                            END_MAIN_COMPOUND = BR;                 // Need newline between yomis;
+                            MAIN_TRANSLATE_HEADER = NULL_CHAR;
+                            END_MAIN_TRANSLATE = BR;
+    }
+    // END USER INPUT    
+
+    // Deliminators for sentences [-E extra sentences ];
+    unsigned char delim1[] = "\x0D\x0A";
+    unsigned char delim2[] = "\x0A";
+    unsigned char delim3[] = "\xE3\x80\x82"; // Period( JPN )
+     
+    std::vector<ustring> delimVect;
+    delimVect.push_back( delim1 );
+    delimVect.push_back( delim2 );
+    delimVect.push_back( delim3 );
+    ParseFileClass parseFile( sentences );
+
+    // Now the logic for doing the things (2 paths):
+    //     -I, -F   ( it's own funciton all together ), output to file furiganizing field specified
+    //     -I, -K, -S Searches field(s) S and inserts Kanji information K from input file I;
+    
+    // Open output file and write UTF-8 HEADER; 
+    std::ofstream out; out.open( outFile, std::ios::binary );
+    out.write(HEADER, 3);
+    
+
+    std::size_t SAVED_POS = cvsFile.getPositionPointer();
+    const std::size_t FIELD_LEN_MAX = largestDelimField( cvsFile, delim );
+    cvsFile.setGetPointer( SAVED_POS );
+    
+    
+    unsigned char buff[FIELD_LEN_MAX+1];
+
+    // No header to skip, Set GetPointer back to 0;
+    cvsFile.read( buff, 3 );
+    if(
+        buff[0] != HEADER[0] ||
+        buff[1] != HEADER[1] ||
+        buff[2] != HEADER[2] 
+      ) 
+    {
+        cvsFile.setGetPointer( 0 );
+    } 
+    
+    SAVED_POS = cvsFile.getPositionPointer();
+    
+    if( doFuriganize )
+    {
+        if( doFuriganize > numberOfFields )
+        {
+            std::cout << "Error. Field to add Furigana ( -F ) exceeds maximum Field Number( -N ).\n";
+            return 4;
+        }
+
+    }   
+
+//std::cout << "KHelpFLAGS("<< KHelpFLAGS<<"); filedToSearchSIZE("<< fieldsToSearch.size()<<"); ";
+
+    std::size_t pos = 0;
+    // Start reading through search fields
+    if( KHelpFLAGS && fieldsToSearch.size() ) {
+        if( (KHelpFLAGS & S_FLAG) && !sentences ) {
+            std::cout << "Error. Need to supply sentences file (-E file) when using switch -K S.\n";
+            return 8;
+        }
+        
+        
+//        std::size_t numEntries = numLines( cvsFile );
+//        for(pos = cvsFile.getLine(buff, FIELD_LEN_MAX, delim);
+        int fieldNumber = 1;
+        int fieldsSelected_SIZE = fieldsToSearch.size();
+
+        std::size_t kanjiPos = 0;
+        unsigned char kanji[4];
+        std::vector<ustring> AddToFieldSelected;
+        
+        while( (pos = cvsFile.getLine(buff, FIELD_LEN_MAX, delim)) )
+        {
+            // Increment through file, keeping track of what Delim num
+            // Currently on;
+            
+            for(int field=0;field<fieldsSelected_SIZE;field++) { 
+                
+                // Fields to Search through are listed in filedToSearch[]; 
+                // When fieldNumber matches, Create Extra Info for Kanji;
+                if( fieldsToSearch[field] == fieldNumber ) { // one-BASED;
+                    // this is field to gather kanji info on
+                    // step through every KHelpFLAGS;    
+                    // enum K_HELP_FLAGS { F_FLAG = 0x01, O_FLAG = 0x02, K_FLAG = 0x04, S_FLAG = 0x08,T_FLAG = 0x10, Y_FLAG=0x20 };
+                    kanjiPos = nextKanjiPos( Jmdict, buff );
+                    while( kanjiPos ) { 
+                        kanjiPos--;
+                        // Found a Kanji. Add to foundKanji
+                        // NOTE** MAY NOT be Kanji. Check with dictionary!
+                        kanji[0] = buff[kanjiPos+0];
+                        kanji[1] = buff[kanjiPos+1];
+                        kanji[2] = buff[kanjiPos+2];
+                        kanji[3] = '\0';            
+
+                        std::vector<ustring> onYomi;   
+                        std::vector<ustring> kunYomi;  
+                        std::vector<ustring> compounds; // holds kanji sentences/definitions(extra)
+            
+                        char translation[180];
+                        unsigned char help[420];
+                        
+                        translation[0] = '\0'; 
+                        help[0] = '\0';
+                        if( kanjiDict2.getIndex( kanji, 0 )) 
+                        { 
+                            // Verified Kanji[];
+                            kanjiDict2.setIndex(kanjiDict2.getIndex( kanji, 0 )-1);
+                            
+                            if( (KHelpFLAGS & O_FLAG) )
+                                onYomi  = kanjiDict2.onyomi();
+                            if( (KHelpFLAGS & K_FLAG) )
+                                kunYomi  = kanjiDict2.kunyomi();
+                            translation[0] = '\0';
+                            if( (KHelpFLAGS & T_FLAG) )
+                                kanjiDict2.translate( translation, 180 );
+                            unsigned char yomi[380];
+                            
+                            // Takes all Kun-yomis and tries to define them;
+                            for(int i=0, len; (KHelpFLAGS & Y_FLAG) &&  i < kunYomi.size(); i++) { 
+
+                                len = 0;
+                                int PERIOD_FOUND = 0;
+                                for(int z=0; kunYomi[i][z]; z++, len++ ) { 
+                                    yomi[ len ] = kunYomi[i][z];
+                                    
+                                    if( yomi[len] == '.' ) { len--; PERIOD_FOUND=1; }
+                                }
+                                yomi[ len ] = '\0';
+
+                                // Actually an <keb>entry; ( definition for kun-yomi )
+                                if( Jmdict.setKanji( yomi ) != 0 ) { 
+                                    // Try to find match with Kanji+Okurigana;
+                                        len = 0;
+                                        yomi[len+0] = kanji[0];yomi[len+1] = kanji[1];yomi[len+2] = kanji[2];
+                                        len += 3;
+
+                                        int z=0;
+                                        if(PERIOD_FOUND) { while( kunYomi[i][z] != '.' ) { z++; } z++; } // skip '.' period;
+                                        while( kunYomi[i][z] ) { yomi[ len ] = kunYomi[i][z]; len++; z++; }
+                                        yomi[len] = '\0'; // TRY that (BELOW IF STATEMENT );
+                                }
+
+                                if( Jmdict.setKanji( yomi ) == 0 ) { // 0 == success;
+                                    int helpLen = 0;
+                                        // Place Kanji first, then after period kana;
+                                        help[helpLen+0] = kanji[0];help[helpLen+1] = kanji[1];help[helpLen+2] = kanji[2];
+                                        helpLen += 3;
+
+                                    if( PERIOD_FOUND ) {
+                                        int z=0;
+                                        while( kunYomi[i][z] != '.' ) { z++; } // place Period in help[] also; 
+                                        while( kunYomi[i][z] ) { help[ helpLen ] = kunYomi[i][z]; helpLen++; z++; }
+                                        help[helpLen+0] = ' '; helpLen++;
+                                    }                // Repurpose help(), since it isn't used.
+
+                                    
+                                    // Repurpose yomi[]; reb;
+                                    Jmdict.reb( yomi );
+                                    for(int z=0; yomi[z]; z++,helpLen++){ help[helpLen] = yomi[z]; }
+                                    help[helpLen] = ' '; helpLen++;
+                                    
+                                    
+                                    // Repurpose yomi[]; 
+                                    Jmdict.translate(yomi);
+                                    for(int z=0; yomi[z]; z++,helpLen++){ help[helpLen] = yomi[z]; }
+                                    help[ helpLen ] =  '\0';
+                                    
+                                    compounds.push_back( help );
+                                }
+                            }
+
+                            int l = 0;
+                            AddToFieldSelected.push_back( MAIN_KANJI_HEADER );
+                            AddToFieldSelected.push_back( kanji );
+                            AddToFieldSelected.push_back( END_MAIN_KANJI );
+                            
+                            AddToFieldSelected.push_back( MAIN_ONYOMI_HEADER );
+                            //out << MAIN_KANJI_HEADER << kanji << END_MAIN_KANJI
+                            //    << MAIN_ONYOMI_HEADER;
+                            l=onYomi.size();for(int j=0;j<l;j++){AddToFieldSelected.push_back( onYomi[j] ); if(j+1<l){AddToFieldSelected.push_back( YOMI_DELIM );}}
+                            AddToFieldSelected.push_back( END_MAIN_ONYOMI );
+                            AddToFieldSelected.push_back( MAIN_KUNYOMI_HEADER );
+                            //out << END_MAIN_ONYOMI << MAIN_KUNYOMI_HEADER;
+                            l=kunYomi.size();for(int j=0;j<l;j++){if(j>0||onYomi.size()){AddToFieldSelected.push_back( YOMI_DELIM );} AddToFieldSelected.push_back( kunYomi[j] );}
+                            AddToFieldSelected.push_back( END_MAIN_KUNYOMI );
+                            AddToFieldSelected.push_back( MAIN_COMPOUND_HEADER );
+                            //out << END_MAIN_KUNYOMI << MAIN_COMPOUND_HEADER;
+                            l=compounds.size();
+                    
+                            // Compound Size == l
+                            for(int j=0;j<l;j++){
+                                AddToFieldSelected.push_back( compounds[j] );
+                                AddToFieldSelected.push_back( (unsigned char *)"<br>" );
+                            }
+
+                            AddToFieldSelected.push_back( END_MAIN_COMPOUND );
+                            AddToFieldSelected.push_back( MAIN_TRANSLATE_HEADER );
+                            AddToFieldSelected.push_back( (unsigned char *)translation );
+                            AddToFieldSelected.push_back( END_MAIN_TRANSLATE );
+                            //out << END_MAIN_COMPOUND << MAIN_TRANSLATE_HEADER //compounds_main;
+                            //    << translation << END_MAIN_TRANSLATE; // outs trans every time;
+                        }
+                        
+                        kanjiPos+=3; // increment past Kanji; 
+                        std::size_t nextKanjiFound = 
+                            nextKanjiPos( Jmdict, buff, kanjiPos );
+    
+                        if( nextKanjiFound ) { 
+                            kanjiPos+= nextKanjiFound; 
+                            
+                            // Extra check. Doesn't seem necessary...
+                            if( !buff[kanjiPos-1] || !buff[kanjiPos+0] || !buff[kanjiPos+1] ){ kanjiPos = 0; }                    
+                        }
+                        else { kanjiPos = 0; } // ZERO NO MORE KANJI; 
+                        
+                    }
+                    
+                    // MAIN LOOP COUNTER;
+                    
+                }
+            }
+            
+            
+            // readStr Jumps past Delim; pos+=DELIM_SIZE; // Skip Past Deliminator!
+            // Muimi; cvsFile.setGetPointer( pos );
+            fieldNumber++;
+           
+            // Iterated through all fieldNumbers(DelimsPerEntry)
+            // Read delims Again, this time printing contents; 
+            // Also print out AddToFieldSelected;
+            if( fieldNumber > numberOfFields ) {  
+                fieldNumber = 1; 
+                cvsFile.setGetPointer( SAVED_POS );
+                
+                for(int i=0; i < numberOfFields; i++) { 
+                    cvsFile.setGetPointer((cvsFile.getLine(buff, FIELD_LEN_MAX, delim)));
+
+                    // Before outputing buff, make sure it wasn't to be
+                    // Furiganized first!
+                    if( i+1 != doFuriganize ) { 
+                        out << buff; // Output to .cvs file;
+                    } 
+                    else 
+                    {
+                        // Add Furigana to buff FIRST;
+                        unsigned int MAX_FURIGANA_SIZE = FIELD_LEN_MAX*2;
+                        unsigned char furiganaAdded[ MAX_FURIGANA_SIZE +1 ];
+                        Jmdict.addFurigana( buff, 
+                                            furiganaAdded, 
+                                            MAX_FURIGANA_SIZE );
+                        out << furiganaAdded;
+                    }
+
+                    // Print out Extra information for Field i+1;                    
+                    if( i+1 == printToField ) { 
+                        int vectorSize = AddToFieldSelected.size();
+
+                        for(int j=0; j < vectorSize; j++)
+                        {
+                            out << AddToFieldSelected[j]; 
+                        }
+                        
+                        // Delete contents of Vector; 
+                        AddToFieldSelected.clear();
+                    }
+                    
+                    // RE-Insert Deliminator; 
+                    out << outDelim;
+                }
+                if( outDelim[0] != 0x0A ) { 
+                    out << ENTER;
+                }
+                // Position Pointer should now be at same POS at start of IF() statment; 
+                // Save POS pointer; 
+                SAVED_POS = cvsFile.getPositionPointer();   
+                fieldNumber = 1; 
+            }
+       }
+        
+         
+        
+    } 
+
+
+//        kanjiDict2 = new kanjiDB::kanjiDict2_InfoClass( KANJIDICT2 ); 
+
+//    if( Jmdict )     { delete Jmdict; }
+//    if( kanjiDict2 ) { delete kanjiDict2; }
+    
+    return 0;
+}
+
+void getSwitchIndex(unsigned int *const ret, const int argc, const char **const argv ) 
+{
+    for(int i=0; i < argc; i++) { ret[i] = 0; }
+    
+//         <<"kanjiInfo.exe [-I] [-D Delim] [-N ##] [-S ##,##,##,etc] \n
+//         << "\t[-P ##] [-F] [-O OutputFile] [-K [ F ] [ O ] [ K ] [ S ]]  \n"
+//         << "\t[-M]\n"
+// *********************** USER INPUT HANDLER *******************************
+    if(argc>0)
+    {    /* Exits loop when at the second to last Pointer */
+        for(int i=1;i<argc;i++)
+        {
+            if( *argv[i]=='-')
+            {
+               switch( toupper(*(argv[i]+1) ) )
+               {                       
+               case 'I':
+                    ret[ I_IN_FILE ] = i+1; 
+                    break;
+               case 'D':
+                    ret[ D_Delim ]   = i+1;
+                    break;
+                       
+               case 'S':
+                    ret[ S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS ] = i+1;
+                    break;
+               case 'P':
+                    ret[ P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P ] = i+1;
+                    break;
+               case 'F':
+                    ret[ F_FURIGANIZE_BEFORE_ADDING_EXTRA_INFO ] = i+1;
+                    break;
+               case 'K':
+                    ret[ K_HELP_TO_ADD_KANJI_SWITCHES_TO_ACTUALLY_ADD_TO_FILE_F_O_K_S_T_Y ] = i+1;
+                    break;
+               case 'M':
+                    ret[ M_MARKUP_SPECIFIER_ADD_HTML_MARKUP__DEFAULTS_TO_NO_MARKUP ] = i+1;
+                    break;
+               case 'E':
+                    ret[ E_EXTRA_SENTENCES ] = i+1;
+                    break;
+               case 'O': 
+                    ret[ O_OUT_FILE ] = i+1; 
+                    break;
+               case 'N': 
+                    ret[ N_NUMBER_OF_FIELDS ] = i+1; 
+                    break;
+               case 'C': 
+                    ret[ C_CONVERT_OUTPUT_FILE_DELIMINATOR__THIS_CAN_DIFFER_FROM_ORIGINAL_DELIM ] = i+1; 
+                    break;
+               
+               case 'J': 
+                    ret[ J_JMDICT ] = i+1; 
+                    break;
+               
+               case 'W':                
+                    ret[ W_KANJIDICT2 ] = i+1; 
+                    break;
+               
+               
+               case 'H': 
+                    ret[ H_help ] = i+1; 
+                    break;
+               case 'V': 
+                    ret[ V_version ] = i+1; 
+                    break;
+
+
+               default:
+               break;
+               }
+            }
+        }
+    }
+
+// *********************** END USER INPUT HANDLER ***************************
+
+}
+void numToStr(char *const retStr, const std::size_t i)
+{
+    std::size_t len = 0;
+    std::size_t mult = 1;
+    while( mult ==1 || mult <= i ) { mult *= 10; len++; }
+    if( len == 0 ) { retStr[0]=0x30; retStr[1]='\0'; return ; }
+    mult /= 10;
+    
+    std::size_t copyI = i;
+    for(unsigned int c=0, num=0; c < len-1; c++, mult /= 10) {
+        num = (copyI / mult );
+        copyI -=  (num * mult );
+        retStr[c] = num + 0x30;
+    }
+    copyI = i % 10;
+    retStr[len-1]= copyI;
+    retStr[len-1] += 0x30;
+    retStr[len ] = '\0';
+
+    return ;
+}
+std::size_t strToNum(const char *s, const std::size_t index, const int len ) {
+    if( !s || !len || index < 0 ) { return 0; }
+
+    std::size_t ret = 0;
+    std::size_t mult = 1; 
+    for(int i=len-1; i >= 0; i--, mult*=10) { ret+= (s[ index+i ]-0x30) * mult;  }
+
+    return ret; 
+}
+
+int strNumlen(const char *s, const std::size_t index ) { 
+    if( !s ) { return 0 ; }
+    int i = 0;
+    while( s[ index+i ] > 0x2F && s[ index+i ] < 0x3A ) { i++; }
+
+    return i; 
+}
+
+
+// input should be delimiterized list of commas and numbers
+// Convert numbers and place into *ret; 
+// Arg1: return value, holds ints recovered from user input
+// Arg2: CLI user input
+// Arg2: Index value of *(argv+?) where string resides;
+void getInputFieldNums( std::vector<int> ret, const char **const argv, const int index )
+{
+    int numIntsAddedToRet = 0;
+    for(int i=0; argv[index][i]; i++){ 
+        int numLen = strNumlen( argv[index], i );
+        if( numLen ) {
+            ret.push_back( strToNum( argv[i], i, numLen ) );
+            numIntsAddedToRet++;
+            i+= numLen-1; // Dont skip past NULL_TERMINATOR;
+        } 
+    }
+    
+    return ;
+}
+
+
+unsigned int grabFLAG_FROM_KHELP( const int argc,
+                                  const char **const argv, 
+                                  const int INDEX )
+{
+    unsigned int ret = 0;
+    
+    // Search for flags spanning multiple pointers(argv**)
+    // Stops if no flag found, or index < argc; 
+    for(int i=0, index=INDEX; 
+                 argv[index][i] == ' ' || 
+                 argv[index][i] == 'f' || 
+                 argv[index][i] == 'F' || 
+                 argv[index][i] == 'o' || 
+                 argv[index][i] == 'O' || 
+                 argv[index][i] == 'K' || 
+                 argv[index][i] == 'k' ||
+                 
+                 argv[index][i] == 'T' || 
+                 argv[index][i] == 't' || 
+                 argv[index][i] == 'Y' || 
+                 argv[index][i] == 'y' || 
+                  
+                 argv[index][i] == 'S' || 
+                 argv[index][i] == 's'; i++) { 
+        if( argv[index][i] == 'F' || argv[index][i] == 'f' ) { ret |= 0x01; }
+        if( argv[index][i] == 'O' || argv[index][i] == 'o' ) { ret |= 0x02; }
+        if( argv[index][i] == 'K' || argv[index][i] == 'k' ) { ret |= 0x04; }
+        if( argv[index][i] == 'S' || argv[index][i] == 's' ) { ret |= 0x08; }
+        if( argv[index][i] == 'T' || argv[index][i] == 't' ) { ret |= 0x10; }
+        if( argv[index][i] == 'Y' || argv[index][i] == 'y' ) { ret |= 0x20; }
+        if( argv[index][i+1] == '\0') { 
+            if( index+1 < argc ) { 
+                index++; 
+                i = -1;
+            }
+        }
+    } 
+    return ret;
+}
+
+void help() { 
+
+std::cout << "Insert Kanji info into .cvs file.\n"
+         <<"kanjiInfo.exe [-I inputFile] [-D Delim] [-C Delim] [-S ##,##,##,etc] \n"
+         << "\t[-P ##] [-F ##] [-K [ F ] [ O ] [ K ] [ S ] [ T ] [ Y ]]  \n"
+         << "\t[-O OutputFile] [-E file] [-N ##] \n"
+         << "\t[-J JMdict_Dictionary ] [-W  kanjidic2.xml] [-M] [-V] [-H]\n"
+
+         << "\nDictionaries -J and -W are Requried. Download these First and\n"
+         << "include supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
+
+		<< "\n"
+		<< "  -I\tInput (.cvs) File to read and add kanji information to.\n"
+		<< "  -D\tSet Deliminator to use in read in (.cvs) file ( FLAG: -I )\n"
+        << "\t Default deliminator is New line, every line is a new field. \n"
+        << "  -C\tConvert old Delim( -D ) to new Delim ( -C ) in created file ( -O )\n"
+        << "\t If Delim ( -D ) is supplied, there MUST be (-N ##) number\n"
+        << "\tof fields per line\n"
+		<< "  -N\tNumber of deliminators(fields) per line. If default deliminator.\n"
+		<< "\t (newline) is used, -N defaults to 3 newlines(fields) per entry\n"
+		<< "  -S\tSets the field(s) to add Kanji info and insert into field (-P )\n"
+		<< "\t Default: Add information based on field 1.\n"
+		<< "  -P\tInserts all kanji data to specified field. (Default is 2).\n"
+		<< "  -F\tAdd Furigana to field number. BEFORE adding extra information\n"
+		<< "  -K\tKanji info to add to cards.\n"
+		<< "\t F: Add furigana to inserted data\n"
+		<< "\t O: Add on-yomi for Kanjis\n"
+		<< "\t K: Add kun-yomi for Kanjis\n"
+		<< "\t T: Add translation of Kanji\n"
+		<< "\t Y: Add translation to all Kun-Yomi\n"
+		<< "\t S: Add sentences that contain kanjis(from 1st field only)\n"
+		<< "\t Sentences requires the use of switch -E to extract sentences from\n"
+		<< "  -E\tExtra sentences to extract based on words/Kanji in Field(s) -S\n"
+		<< "  -M\tAdd markup(HTML) to format output ( for use in Anki )\n"
+		<< "\t Defaults to normal text file\n"
+		<< "  -N\tNumber of fields in cvs file. defaults to 3 if not specified\n"
+		<< "  -O\tOutput file name. Defaults to kanjiInfo.cvs\n"
+        << "  -J\tJMdict needed. Download and supply with -J switch. Default\n"
+        << "\t value: JMdict.xml\n"
+        << "  -W\tKanjidict2.xml needed. Download and supply with -W switch. \n"
+        << "\t Default value: kanjidic2.xml\n"
+		<< "  -H\tPrints this help.\n"
+		<< "  -V\tPrints the version\n"
+		<< "\n"
+		<< "  Example Usage: \n"
+        << "kanjiInfo.exe -J JMdict_e_ALL_LANGUAGES.xml -W kanjidic2.xml -i list.txt\n"
+        << "-K K O T Y -o out.cvs -M -C ;\n"
+		<< "\t This is command will use default Delim of \"newLine\" in file list.txt\n"
+		<< "\t and output the delim (-C) ';' to out.cvs. It will use default \n"
+        << "\t search field (-S), field 1 and output (-K) On/Kun yomi, Translation,\n"
+        << "\t and Translation of Kun-Yomis to output out.csv using HTML styling(-M).\n"
+		<< "\n";
+
+
+
+} 
+
+void version(const char **const argv) { 
+    std::cout << *(argv+0) << " Version: "<< VERSION_MAJOR << VERSION_MINOR << VERSION_ << std::endl;
+}
+
+
+std::size_t numLines(ParseFileClass & file)
+{
+    const unsigned char *delim = (const unsigned char *)"\x0A";
+    std::size_t pos = 0;
+    std::size_t numLines = 0;
+    while( (pos = file.findPos(delim) ) ) {
+        numLines++; 
+        file.setGetPointer( pos + 1 );
+    }
+    
+    return numLines;
+}
+
+std::size_t largestDelimField(ParseFileClass & file, const unsigned char *delim)
+{
+    std::size_t pos = 0;
+    std::size_t lastPos = 0;
+    std::size_t MAX_LINE_LENGTH = 0;
+    std::size_t lineLen = 0;
+    
+    while( (pos = file.findPos(delim) ) ) {
+        lineLen = pos - lastPos;
+        if( lineLen > MAX_LINE_LENGTH ) { MAX_LINE_LENGTH = lineLen; }
+        
+        file.setGetPointer( pos + 1 );
+        lastPos = pos + 1;
+    }
+
+    return MAX_LINE_LENGTH;
+}
+
+
