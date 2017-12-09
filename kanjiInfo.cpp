@@ -22,7 +22,10 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2017/12/10  - Version 0.1.0
+	-Last Updated:2017/12/10  - Version 0.1.1
+	                            Added: outputs to STDOUT if no output file given.
+                                Fixed: Closed file after opening
+                              - Version 0.1.0
 	                            Added support for Switch -K S:
                                       Add sentences to Output;
 	                            Added support for Switch -K F:
@@ -106,7 +109,7 @@ int main(const int argc, const char **const argv) {
     
     // Default value; Can be overridden by UserInput; 
     const char *ENTER = "\x0A";
-    const char *outFile = "kanjiInfo.cvs";
+    const char *outFile = 0; 
     const unsigned char *delim  = (const unsigned char *)"\x0A";
     const unsigned char *outDelim=(const unsigned char *)"\x0A";
     std::vector<int> fieldsToSearch;
@@ -121,6 +124,9 @@ int main(const int argc, const char **const argv) {
     const unsigned char *YOMI_DELIM = (unsigned char *)"\xE3\x83\xBB";
     unsigned int errorNo = 0;
     int NUMBER_OF_SENTENCES_TO_ADD = 3;
+    std::streambuf *coutbuf = std::cout.rdbuf(); // may redirect stdout to file;
+//    std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
+    
 //    kanjiDB::jmdict_InfoClass *Jmdict = 0;// ( jmdict );
 //    kanjiDB::kanjiDict2_InfoClass *kanjiDict2 = 0; // ( KANJIDICT2 );
 
@@ -286,11 +292,6 @@ int main(const int argc, const char **const argv) {
     //     -I, -F   ( it's own funciton all together ), output to file furiganizing field specified
     //     -I, -K, -S Searches field(s) S and inserts Kanji information K from input file I;
     
-    // Open output file and write UTF-8 HEADER; 
-    std::ofstream out; out.open( outFile, std::ios::binary );
-    out.write(HEADER, 3);
-    
-
     std::size_t SAVED_POS = cvsFile.getPositionPointer();
     const std::size_t FIELD_LEN_MAX = largestDelimField( cvsFile, delim );
     cvsFile.setGetPointer( SAVED_POS );
@@ -321,8 +322,7 @@ int main(const int argc, const char **const argv) {
 
     }   
 
-//std::cout << "KHelpFLAGS("<< KHelpFLAGS<<"); filedToSearchSIZE("<< fieldsToSearch.size()<<"); ";
-
+    std::ofstream out; 
     std::size_t pos = 0;
     // Start reading through search fields
     if( KHelpFLAGS && fieldsToSearch.size() ) {
@@ -330,6 +330,14 @@ int main(const int argc, const char **const argv) {
             std::cout << "Error. Need to supply sentences file (-E file) when using switch -K S.\n";
             return 8;
         }
+        // Open output file and write UTF-8 HEADER; 
+        if( outFile && outFile[0] ) { 
+            out.open( outFile, std::ios::binary );
+            std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
+        }
+        std::cout << HEADER;
+        
+    
         
         
 //        std::size_t numEntries = numLines( cvsFile );
@@ -508,16 +516,12 @@ int main(const int argc, const char **const argv) {
                             AddToFieldSelected.push_back( END_MAIN_KANJI );
                             
                             AddToFieldSelected.push_back( MAIN_ONYOMI_HEADER );
-                            //out << MAIN_KANJI_HEADER << kanji << END_MAIN_KANJI
-                            //    << MAIN_ONYOMI_HEADER;
                             l=onYomi.size();for(int j=0;j<l;j++){AddToFieldSelected.push_back( onYomi[j] ); if(j+1<l){AddToFieldSelected.push_back( YOMI_DELIM );}}
                             AddToFieldSelected.push_back( END_MAIN_ONYOMI );
                             AddToFieldSelected.push_back( MAIN_KUNYOMI_HEADER );
-                            //out << END_MAIN_ONYOMI << MAIN_KUNYOMI_HEADER;
                             l=kunYomi.size();for(int j=0;j<l;j++){if(j>0||onYomi.size()){AddToFieldSelected.push_back( YOMI_DELIM );} AddToFieldSelected.push_back( kunYomi[j] );}
                             AddToFieldSelected.push_back( END_MAIN_KUNYOMI );
                             AddToFieldSelected.push_back( MAIN_COMPOUND_HEADER );
-                            //out << END_MAIN_KUNYOMI << MAIN_COMPOUND_HEADER;
                             l=compounds.size();
                     
                             // Compound Size == l
@@ -530,7 +534,6 @@ int main(const int argc, const char **const argv) {
                             AddToFieldSelected.push_back( MAIN_TRANSLATE_HEADER );
                             AddToFieldSelected.push_back( (unsigned char *)translation );
                             AddToFieldSelected.push_back( END_MAIN_TRANSLATE );
-                            //out << END_MAIN_COMPOUND << MAIN_TRANSLATE_HEADER //compounds_main;
                             //    << translation << END_MAIN_TRANSLATE; // outs trans every time;
                         }
                         
@@ -571,7 +574,7 @@ int main(const int argc, const char **const argv) {
                     // Before outputing buff, make sure it wasn't to be
                     // Furiganized first!
                     if( i+1 != doFuriganize ) { 
-                        out << buff; // Output to .cvs file;
+                        std::cout <<  buff; // Output to .cvs file;
                     } 
                     else 
                     {
@@ -581,7 +584,7 @@ int main(const int argc, const char **const argv) {
                         Jmdict.addFurigana( buff, 
                                             furiganaAdded, 
                                             MAX_FURIGANA_SIZE );
-                        out << furiganaAdded;
+                        std::cout <<  furiganaAdded;
                     }
 
                     // Print out Extra information for Field i+1;                    
@@ -592,7 +595,7 @@ int main(const int argc, const char **const argv) {
                             for(unsigned int sentence_counter = 0; sentence_counter < sentenceSIZE; sentence_counter++ ) 
                             {
                                 // Actually not a sentence. Actually pieces of them;
-                                out << sentenceToAdd[ sentence_counter ];
+                                std::cout <<  sentenceToAdd[ sentence_counter ];
                             }
                             
                             sentenceToAdd.clear();
@@ -603,7 +606,7 @@ int main(const int argc, const char **const argv) {
 
                         for(int j=0; j < vectorSize; j++)
                         {
-                            out << AddToFieldSelected[j]; 
+                            std::cout <<  AddToFieldSelected[j]; 
                         }
                         
                         // Delete contents of Vector; 
@@ -611,10 +614,10 @@ int main(const int argc, const char **const argv) {
                     }
                     
                     // RE-Insert Deliminator; 
-                    out << outDelim;
+                    std::cout <<  outDelim;
                 }
                 if( outDelim[0] != 0x0A ) { 
-                    out << ENTER;
+                    std::cout <<  ENTER;
                 }
                 // Position Pointer should now be at same POS at start of IF() statment; 
                 // Save POS pointer; 
@@ -626,13 +629,9 @@ int main(const int argc, const char **const argv) {
          
         
     } 
+    out.close();
+    std::cout.rdbuf(coutbuf); //reset to standard output again    
 
-
-//        kanjiDict2 = new kanjiDB::kanjiDict2_InfoClass( KANJIDICT2 ); 
-
-//    if( Jmdict )     { delete Jmdict; }
-//    if( kanjiDict2 ) { delete kanjiDict2; }
-    
     return 0;
 }
 
@@ -817,20 +816,20 @@ unsigned int grabFLAG_FROM_KHELP( const int argc,
 
 void help() { 
 
-std::cout << "Insert Kanji info into .cvs file.\n"
+std::cout << "Insert Kanji Info from file in batch.\n"
          <<"kanjiInfo.exe [-I inputFile] [-D Delim] [-C Delim] [-S ##,##,##,etc] \n"
          << "\t[-P ##] [-F ##] [-K [ F ] [ O ] [ K ] [ S ] [ T ] [ Y ]]  \n"
          << "\t[-O OutputFile] [-E file] [-N ##] \n"
          << "\t[-J JMdict_Dictionary ] [-W  kanjidic2.xml] [-M] [-V] [-H]\n"
 
          << "\nDictionaries -J and -W are Requried. Download these First and\n"
-         << "include supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
+         << "supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
 
 		<< "\n"
 		<< "  -I\tInput (.cvs) File to read and add kanji information to.\n"
 		<< "  -D\tSet Deliminator to use in read in (.cvs) file ( FLAG: -I )\n"
         << "\t Default deliminator is New line, every line is a new field. \n"
-        << "  -C\tConvert old Delim( -D ) to new Delim ( -C ) in created file ( -O )\n"
+        << "  -C\tConvert old Delim( -D ) to new Delim ( -C ) in stdout\n"
         << "\t If Delim ( -D ) is supplied, there MUST be (-N ##) number\n"
         << "\tof fields per line\n"
 		<< "  -N\tNumber of deliminators(fields) per line. If default deliminator.\n"
@@ -851,7 +850,7 @@ std::cout << "Insert Kanji info into .cvs file.\n"
 		<< "  -M\tAdd markup(HTML) to format output ( for use in Anki )\n"
 		<< "\t Defaults to normal text file\n"
 		<< "  -N\tNumber of fields in cvs file. defaults to 3 if not specified\n"
-		<< "  -O\tOutput file name. Defaults to kanjiInfo.cvs\n"
+		<< "  -O\tOutput file name. Defaults to stdout.\n"
         << "  -J\tJMdict needed. Download and supply with -J switch. Default\n"
         << "\t value: JMdict.xml\n"
         << "  -W\tKanjidict2.xml needed. Download and supply with -W switch. \n"
