@@ -1,3 +1,6 @@
+Project includes material from the JMdict, KANJIDIC2 dictionary files in accordance with the licence provisions of the Electronic Dictionaries Research Group. 
+See http://www.csse.monash.edu.au/~jwb/edict.html and http://www.edrdg.org/
+
 adds Kanji info to a .cvs file ( for importing into Anki? )
 # What does it do? See below ( Using list.txt file )
 
