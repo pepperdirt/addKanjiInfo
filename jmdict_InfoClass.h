@@ -2,11 +2,13 @@
 #define JMDICT_INFOCLASS
 #include <cstring>
 #ifndef KANJI_INFO_CLASS
-  #include "KanjiInfoClass.cpp" // pure-poly-base class; 
+  #include "KanjiInfoClass.cpp" // pure-poly-base class;  Ver: 1.0.0
 #endif
 
 namespace kanjiDB {
           
+#ifndef OPTIMIZE_CLASS
+#define OPTIMIZE_CLASS
 class OPTIMIZE { 
        public: 
       static OPTIMIZE NO_OPTIMIZATION () { return OPTIMIZE(0); }
@@ -19,6 +21,7 @@ class OPTIMIZE {
       const unsigned int optimizeLevel;
 
 };    
+#endif
 
 class jmdict_InfoClass: public KanjiInfoClass {
     private:

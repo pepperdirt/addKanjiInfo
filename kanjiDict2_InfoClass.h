@@ -2,7 +2,7 @@
 #define KANJIDICT2_INFOCLASS
 #include <string>
 #ifndef KANJI_INFO_CLASS
-  #include "KanjiInfoClass.cpp" // pure-poly-base class; 
+  #include "KanjiInfoClass.cpp" // pure-poly-base class; Version: 1.0.0
 #endif
 
 namespace kanjiDB { 

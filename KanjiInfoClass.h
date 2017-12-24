@@ -3,10 +3,10 @@
 #include <fstream>
 #include <vector>
 #include <string>
-#include "ParseFileClass.cpp" // Version 1.0.2; 
+#include "ParseFileClass.cpp" // Version 2.0.1; 
 
 
-  const char KanjiInfoClass_VERSION[]= "0.0.1";
+  const char KanjiInfoClass_VERSION[]= "1.0.0";
 
 namespace unsigned_types { 
     typedef std::basic_string<unsigned char> ustring;
@@ -25,7 +25,7 @@ class KanjiInfoClass {
             class ParseFileClass *DB; // Database API;
 	    const unsigned char *DATABASE;
             std::vector<std::size_t> keyTable; // lookup Table for Keys (kanji)
-            std::size_t lastLookup;            // Cached lookup ( needed for researching key );
+            std::size_t lastLookup;            // MUST NOT == 0 for life of program; 
             
             
     public:
@@ -33,9 +33,13 @@ class KanjiInfoClass {
            virtual ~KanjiInfoClass();
            void setKeyTable( std::vector<std::size_t> table) 
                                                       { 
-                                                      keyTable = table; 
+                                                      keyTable = table;
+                                                      // +1 to size so client code can use
+                                                      // .size() without modd member getKeySize();
+                                                      if( keyTable.size() )
+                                                          keyTable.push_back( 0 );  
                                                       }
-           const unsigned char *getDB() { return DB->getRaw(); }
+           const unsigned char *const getDB() const { return DB->getRaw(); }
            
            std::size_t searchStr(const unsigned char *str
                                  , const std::size_t beg = 0
@@ -47,17 +51,26 @@ class KanjiInfoClass {
                           }                    
                        }
                        else {
-                           DB->setGetPointer( keyTable[ lastLookup ] );                       
+                           DB->setGetPointer( KanjiInfoClass::getKeyPos( lastLookup ) );                       
                        }     
 
                        return DB->findPos(str); 
            }
 
            std::size_t searchStr(const unsigned char *str, 
-                                 const unsigned char *endDelim) const 
+                                 const unsigned char *endDelim,
+                                 const std::size_t beg = 0) const 
            {
-               DB->setGetPointer( keyTable[ lastLookup ] );
-               return DB->findPos(str, endDelim); 
+                       if( beg ) { 
+                          if( DB->setGetPointer( beg ) ){
+                              return 0;
+                          }                    
+                       }
+                       else {
+                          DB->setGetPointer( KanjiInfoClass::getKeyPos( lastLookup ) );
+                       }
+
+                       return DB->findPos(str, endDelim); 
            }
            
            // NEED FIX DB [ SHOULD BE CONST, but sets endPos ;-; ]
@@ -66,7 +79,7 @@ class KanjiInfoClass {
                         const std::size_t pos = 0  ) const
            {
                if( pos ) { DB->setGetPointer( pos ); }
-               else  DB->setGetPointer( keyTable[ lastLookup ] );
+               else  DB->setGetPointer( KanjiInfoClass::getKeyPos( lastLookup ) );
                DB->read(s, bufferSize);
            }
 
@@ -75,53 +88,82 @@ class KanjiInfoClass {
                        return DB->getFileLength(); 
            }
            
-           
+           // return size+1(in constructor);
+           // Allows client to iterate through loop by means( i < keyTable.size() ) { i++; }           
            std::size_t getKeySize() const 
            { return keyTable.size(); }
 
+           // Arg1: KanjiIndex from user
+           // Return: if keyTable exists, return pos held by keyTable, else return lastLookup; 
            std::size_t getKeyPos( std::size_t i ) const 
-           { return keyTable[i]; }
+           { 
+               if( getKeySize() == 0 ) { return lastLookup; }
+               return keyTable[ KanjiInfoClass::getlastLookup(i) ]; 
+           }
            
+           // Return: see getKeyPos(); 
+           std::size_t getPos() const { return KanjiInfoClass::getKeyPos( lastLookup ); }
            
-           std::size_t getPos() const { return keyTable[lastLookup ]; }
-           std::size_t getIndex() const { return lastLookup; }
-//           std::size_t getPos
+           // Return: lastLookup value;
+           std::size_t getIndex() const { return lastLookup; } // MUST NOT == 0 
 
            // NOT AN INDEX! Returns 0 on fail; 
            // Probably should be private; 
-           std::size_t kanjiNumber(const unsigned char *k) const;
-// DOUBTFUL THIS SHOULD BE ADDED;           std::size_t kanjiNumber_Loose(const unsigned char *k) const;
+           virtual std::size_t kanjiNumber(const unsigned char *k) const;
 
-// COULD BRAKE STUFF!!!; Reversing order( FAIL IS 1 );
-           virtual int setKanji( const unsigned char *k)
+           // 1-on-fail; 
+           int setKanji( const unsigned char *k)
            { 
-
-                std::size_t kNum = kanjiNumber( k ); //0-on-fail; 
-//std::cout << "kNum("<<kNum<<"); ";
+                // May be overridn, virtual member kanjiNumbere( ); 
+                std::size_t kNum = this->kanjiNumber( k ); //0-on-fail; 
                 if( !kNum ) { 
                     return 1;
                 }
 
-                kNum--;
-                lastLookup = kNum;  
+                // BIG! Removing this: kNum--;
+                this->setIndex( kNum );  
                 return 0;
 
            }      
            
+           
+           // Documentation purposes, MUST BE 1 or greater at all times; 
+           void resetKanjiIndex() { lastLookup = 1; }
+           
+           // Change how lastLookup( implemented as the INDEX of last lookup );
+           // 1-on-fail
+           // Dont see any reason to make virtual.
            int setIndex(std::size_t lookupIndex)
            {
-               if(lookupIndex < keyTable.size() ) {
+               if( !lookupIndex ) {   
+                   resetKanjiIndex(); // Documentation purpose(MUST NOT == 0 );
+                   return 1; 
+               }
+               
+               std::size_t setKeyTable_IS_RUN = getKeySize();
+               if( lookupIndex <= setKeyTable_IS_RUN ) {
                    lastLookup = lookupIndex; 
                    return 0; 
+               }
+               
+               // Sets lastLookup, but still returns Error(1); 
+               if( !setKeyTable_IS_RUN ) { 
+                   // Use 'lookupIndex' as POSITION; 
+                   if( lookupIndex < fileLen() ) { 
+                       lastLookup = lookupIndex;
+                   }
                }
                return 1;
            }
 
-           virtual std::vector<ustring> onyomi()= 0; // DB disables const keyword;
-           virtual std::vector<ustring> kunyomi()= 0;           
-           
+           virtual std::vector<ustring> onyomi()   = 0; // DB disables const keyword;
+           virtual std::vector<ustring> kunyomi()  = 0;           
            
     private:
+           // Only used by non-virtual member functions.
+           // Inherited non-virtual Member Functions MUST NOT be modified.  
+           std::size_t getlastLookup() const { if( lastLookup ) { return lastLookup - 1; } return 0; }
+           std::size_t getlastLookup(const std::size_t i) const { if( i ) { return i - 1; } return 0; }
            // Should only apply to namespace KanjiInfoClass {}; 
            // (BELOW functions);            
            

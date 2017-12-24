@@ -452,7 +452,7 @@ int main(const int argc, const char **const argv) {
                         if( kanjiDict2.getIndex( kanji, 0 )) 
                         { 
                             // Verified Kanji[];
-                            kanjiDict2.setIndex(kanjiDict2.getIndex( kanji, 0 )-1);
+                            kanjiDict2.setIndex(kanjiDict2.getIndex( kanji, 0 )); // only edit for adding 1.0.0 KanjiInfoClass
                             
                             if( (KHelpFLAGS & O_FLAG) )
                                 onYomi  = kanjiDict2.onyomi();
