@@ -1,6 +1,10 @@
 Project includes material from the JMdict, KANJIDIC2 dictionary files in accordance with the licence provisions of the Electronic Dictionaries Research Group. 
 See http://www.csse.monash.edu.au/~jwb/edict.html and http://www.edrdg.org/
 
+Project includes material from Japanese Wordnet
+Japanese Wordnet (vXX) © 2009-2011 NICT, 2012-2015 Francis Bond and 2016-2017 Francis Bond, Takayuki Kuribayashi http://compling.hss.ntu.edu.sg/wnja/index.en.html
+
+Define words in Japanese via terminal. ( Requires Japanese Wordnet's DB ) FILE: Japanese Wordnet as WordNet-LMF (xml)
 adds Kanji info to a .cvs file ( for importing into Anki? )
 # What does it do? See below ( Using list.txt file )
 
