@@ -23,10 +23,14 @@ namespace kanjiDB {
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-         Latest update 2017/11/17 - Version 0.0.1
+         Latest update 2017/12/24 - Version 1.0.0
+                                    Optimization Level Added. 
+                                  - Version 0.0.1
 */
 
-jmdict_InfoClass::jmdict_InfoClass(const char fName[]) : KanjiInfoClass(fName)  
+jmdict_InfoClass::jmdict_InfoClass(const char fName[],
+                                   const OPTIMIZE &O ) : OPTIMIZE_LEVEL( O.getVal() ),
+                                                         KanjiInfoClass(fName)  
 /*: fileLength(getFileLengthInConstructor(fName) ),
   file(getFileInConstrutor(fName) ),  
   ptrPosition(0) */

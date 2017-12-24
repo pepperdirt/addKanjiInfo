@@ -5,7 +5,21 @@
   #include "KanjiInfoClass.cpp" // pure-poly-base class; 
 #endif
 
-namespace kanjiDB { 
+namespace kanjiDB {
+          
+class OPTIMIZE { 
+       public:
+      static OPTIMIZE NO_OPTIMIZATION () { return OPTIMIZE(0); }
+      static OPTIMIZE OPTIMIZE_SOME()    { return OPTIMIZE(1); }
+      static OPTIMIZE OPTIMIZE_MORE()    { return OPTIMIZE(2); }
+      const int getVal() const { return this->optimizeLevel; }
+      OPTIMIZE(const OPTIMIZE &m):optimizeLevel(m.getVal()) {}; 
+       private:
+      explicit OPTIMIZE(unsigned int m):optimizeLevel(m) {}; 
+      const unsigned int optimizeLevel;
+
+};    
+
 class jmdict_InfoClass: public KanjiInfoClass {
     private:
             /* const */ std::size_t fileLength;      // used for bounds checking
@@ -13,9 +27,10 @@ class jmdict_InfoClass: public KanjiInfoClass {
             jmdict_InfoClass& operator=( const jmdict_InfoClass &other );  // no assignment op
             jmdict_InfoClass( const jmdict_InfoClass& other );             // no copy constructor
             jmdict_InfoClass(); // No default ctor
+            const int OPTIMIZE_LEVEL;
             
     public:
-            explicit jmdict_InfoClass(const char fName[]);
+            explicit jmdict_InfoClass(const char fName[], const OPTIMIZE &OptimizeLevel );
            ~jmdict_InfoClass();
 
            std::vector<ustring> kunyomi  ();

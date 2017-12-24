@@ -226,7 +226,7 @@ int main(const int argc, const char **const argv) {
         KANJIDICT2 = argv[switchIndexes[ W_KANJIDICT2 ]];
 
 
-    kanjiDB::jmdict_InfoClass Jmdict( JMDICT );
+    kanjiDB::jmdict_InfoClass Jmdict( JMDICT, kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
     kanjiDB::kanjiDict2_InfoClass kanjiDict2( KANJIDICT2 );
     ParseFileClass cvsFile( inputFile );
     if( fieldsToSearch.size() == 0 ) { 
