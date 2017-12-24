@@ -37,7 +37,7 @@
                                       Adds furigana to Sentences added ( -K S );
                                       Two switches are used in conjunction.
                               - Version 0.0.1
-  
+   
 */
     enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=0,VERSION_=1 };
     enum COMMAND_SWITCHES { 

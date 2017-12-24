@@ -8,7 +8,7 @@
 namespace kanjiDB {
           
 class OPTIMIZE { 
-       public:
+       public: 
       static OPTIMIZE NO_OPTIMIZATION () { return OPTIMIZE(0); }
       static OPTIMIZE OPTIMIZE_SOME()    { return OPTIMIZE(1); }
       static OPTIMIZE OPTIMIZE_MORE()    { return OPTIMIZE(2); }

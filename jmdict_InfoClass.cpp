@@ -18,7 +18,7 @@ kanji kana extraENGLISH
 
 namespace kanjiDB { 
 
-  const char jmdict_InfoClass_VERSION[]= "0.0.1";
+  const char jmdict_InfoClass_VERSION[]= "1.0.0";
 /*
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
@@ -29,7 +29,7 @@ namespace kanjiDB {
 */
 
 jmdict_InfoClass::jmdict_InfoClass(const char fName[],
-                                   const OPTIMIZE &O ) : OPTIMIZE_LEVEL( O.getVal() ),
+                                   const OPTIMIZE &O) : OPTIMIZE_LEVEL( O.getVal() ),
                                                          KanjiInfoClass(fName)  
 /*: fileLength(getFileLengthInConstructor(fName) ),
   file(getFileInConstrutor(fName) ),  
