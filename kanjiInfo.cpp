@@ -6,6 +6,7 @@
 #include "kanjiDict2_InfoClass.cpp"
 // # include kanjiDict2_InfoClass_VERSION[]= "0.0.1";
 // # include ParseFileClass_VERSION[]= "2.0.1";
+#include "Wordnet_DictClass.cpp"
 
 
 
@@ -52,9 +53,14 @@
          C_CONVERT_OUTPUT_FILE_DELIMINATOR__THIS_CAN_DIFFER_FROM_ORIGINAL_DELIM=10,
          E_EXTRA_SENTENCES=11,
          J_JMDICT = 12,
-         W_KANJIDICT2=13,
-         H_help=14,
-         V_version=15,
+         W_WORDNET=13,
+         X_KANJIDICT2=14,
+         G_GLOSS=15,
+         Y_SYNSETS=16,
+         L_GLOSSSIMILAR=17,
+
+         H_help=18,
+         V_version=19,
          END_TERMINATOR=0
     };
     enum K_HELP_FLAGS { F_FLAG = 0x01, O_FLAG = 0x02, K_FLAG = 0x04, S_FLAG = 0x08, T_FLAG = 0x10, Y_FLAG=0x20 };
@@ -107,7 +113,8 @@ int main(const int argc, const char **const argv) {
     if( switchIndexes[ H_help ]    ) { help(); return 0; }
     if( switchIndexes[ V_version ] ) { version(argv); return 0; }
     const char *KANJIDICT2 = "kanjidic2.xml";
-    const char *JMDICT = "JMdict.xml"; 
+    const char *JMDICT  = "JMdict.xml";
+    const char *WORDNET = "jpn_wn_lmf.xml"; 
 //    const char *JMDICT_ALL_LANGS = "JMdict_e_ALL_LANGUAGES.gz";
     
 
@@ -124,6 +131,10 @@ int main(const int argc, const char **const argv) {
     int doFuriganize = 0;
     int doMarkupFile = 0;
     int numberOfFields = 3; // Defaults to 3
+    int doSynsets      = 0;
+    int doGloss        = 0;  
+    int doMoreGloss    = 0;
+
     unsigned int KHelpFLAGS = 0x00; // BIT 0: F, BIT 1: O, BIT 2: K, BUT 3: S;
     const char HEADER[4]= { 0xEF, 0xBB, 0xBF, 0x00 };
     const unsigned char *YOMI_DELIM = (unsigned char *)"\xE3\x83\xBB";
@@ -213,6 +224,21 @@ int main(const int argc, const char **const argv) {
                                           argv, 
                                           switchIndexes[ K_HELP_TO_ADD_KANJI_SWITCHES_TO_ACTUALLY_ADD_TO_FILE_F_O_K_S_T_Y ]
                                         );
+    if(switchIndexes[ G_GLOSS ]  ) 
+        doGloss = 
+                     strToNum(
+                                argv[switchIndexes[ G_GLOSS ]],
+                                0,
+                                strNumlen( 
+                                            argv[switchIndexes[ G_GLOSS ]],
+                                            0
+                                         )
+                             );
+
+    if(switchIndexes[ Y_SYNSETS ]  ) 
+        doSynsets = 1;
+    if(switchIndexes[ Y_SYNSETS ]  ) 
+        doMoreGloss = 1;
 
     
     // doMarkupFile = 1; would have sufficed; 
@@ -222,11 +248,14 @@ int main(const int argc, const char **const argv) {
         outFile = argv[switchIndexes[ O_OUT_FILE ]];
     if(switchIndexes[ J_JMDICT ]  ) 
         JMDICT = argv[switchIndexes[ J_JMDICT ]];
-    if(switchIndexes[ W_KANJIDICT2 ]  ) 
-        KANJIDICT2 = argv[switchIndexes[ W_KANJIDICT2 ]];
+    if(switchIndexes[ W_WORDNET ]  ) 
+        WORDNET = argv[switchIndexes[ W_WORDNET ]];
+    if(switchIndexes[ X_KANJIDICT2 ]  ) 
+        KANJIDICT2 = argv[switchIndexes[ X_KANJIDICT2 ]];
+    
 
-
-    kanjiDB::jmdict_InfoClass Jmdict( JMDICT, kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
+    kanjiDB::Wordnet_DictClass Wordnet( WORDNET,kanjiDB::OPTIMIZE::OPTIMIZE_SOME ) );  
+    kanjiDB::jmdict_InfoClass Jmdict  ( JMDICT, kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
     kanjiDB::kanjiDict2_InfoClass kanjiDict2( KANJIDICT2 );
     ParseFileClass cvsFile( inputFile );
     if( fieldsToSearch.size() == 0 ) { 
@@ -237,7 +266,8 @@ int main(const int argc, const char **const argv) {
     if( !cvsFile.getFileLength() )          { std::cout << "Error. Input file("<<inputFile<<") not found!\n"; return 1<<5; }
     if( !Jmdict.fileLen() )           { std::cout << "Error. "<<JMDICT<<" not found!\n"; return 1<<6; }
     if( !kanjiDict2.fileLen() ) { std::cout << "Error. "<<KANJIDICT2<<" not found!\n"; return 1<<7; }
-
+    if( !Wordnet.fileLen()    ) { std::cout << "Error. "<<WORDNET<<" not found!\n"; return 1<<7; }
+    
     unsigned char *GZIP_HEADER = (unsigned char *)"\x1F\x8B\x08";
     if( 1==1 ) { 
 //        unsigned char buff[4];
@@ -252,7 +282,8 @@ int main(const int argc, const char **const argv) {
 //        i=0;
 //        while( i<3 && buff[ i ] == GZIP_HEADER[ i ]  ){ i++; }
         if( kanjiDict2.getKeySize() < 5 ) {  std::cout << "Error. "<<KANJIDICT2<<" MUST BE unzipped/decompressed!\n"; return 1<<9; }
-   
+
+        if( Wordnet.getKeySize() < 5 )    { std::cout << "Error. "<<WORDNET    <<" MUST BE unzipped/decompressed!\n"; return 1<<10; }
 //        
 //        kanjiDict2.getKeySize();
     }
@@ -698,9 +729,10 @@ void getSwitchIndex(unsigned int *const ret, const int argc, const char **const 
                     break;
                
                case 'W':                
-                    ret[ W_KANJIDICT2 ] = i+1; 
+                    ret[ W_WORDNET ] = i+1; 
                     break;
-               
+               case 'X':
+                    ret[ X_KANJIDICT2 ] = i+1;
                
                case 'H': 
                     ret[ H_help ] = i+1; 
@@ -827,7 +859,8 @@ std::cout << "Insert Kanji Info from file in batch.\n"
          <<"kanjiInfo.exe [-I inputFile] [-D Delim] [-C Delim] [-S ##,##,##,etc] \n"
          << "\t[-P ##] [-F ##] [-K [ F ] [ O ] [ K ] [ S ] [ T ] [ Y ]]  \n"
          << "\t[-O OutputFile] [-E file] [-N ##] \n"
-         << "\t[-J JMdict_Dictionary ] [-W  kanjidic2.xml] [-M] [-V] [-H]\n"
+         << "\t[-J JMdict_Dictionary ] [-W jpn_wn_lmf.xml] [-X kanjidic2.xml] \n"
+         << "\t[-M] [-G [Delim]] [-Y] [-L] [-V] [-H]\n"
 
          << "\nDictionaries -J and -W are Requried. Download these First and\n"
          << "supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
@@ -856,17 +889,24 @@ std::cout << "Insert Kanji Info from file in batch.\n"
 		<< "  -E\tExtra sentences to extract based on words/Kanji in Field(s) -S\n"
 		<< "  -M\tAdd markup(HTML) to format output ( for use in Anki )\n"
 		<< "\t Defaults to normal text file\n"
+        << "  -G\tAdd Gloss(JPN, from Wordnet) of fields specified by -S switch\n"
+        << "\t Defaults to whole field; Optional specify deliminator surrounding\n"
+        << "\t term in order to tell program what term to define\n"
+        << "  -Y\tAdd Synsets (from Wordnet) from fields specified by -S switch\n"
+        << "  -L\tAdd Similar meaning Glosses.\n"
 		<< "  -N\tNumber of fields in cvs file. defaults to 3 if not specified\n"
 		<< "  -O\tOutput file name. Defaults to stdout.\n"
         << "  -J\tJMdict needed. Download and supply with -J switch. Default\n"
         << "\t value: JMdict.xml\n"
-        << "  -W\tKanjidict2.xml needed. Download and supply with -W switch. \n"
+        << "  -W\tjpn_wn_lmf.xml needed. Download and supply with -W switch. \n"
+        << "\t Default value: jpn_wn_lmf.xml\n"
+        << "  -X\tKanjidict2.xml needed. Download and supply with -X switch. \n"
         << "\t Default value: kanjidic2.xml\n"
 		<< "  -H\tPrints this help.\n"
 		<< "  -V\tPrints the version\n"
 		<< "\n"
 		<< "  Example Usage: \n"
-        << "kanjiInfo.exe -J JMdict_e_ALL_LANGUAGES.xml -W kanjidic2.xml -i list.txt\n"
+        << "kanjiInfo.exe -J JMdict_e_ALL_LANGUAGES.xml -i list.txt\n"
         << "-K K O T Y -o out.cvs -M -C ;\n"
 		<< "\t This is command will use default Delim of \"newLine\" in file list.txt\n"
 		<< "\t and output the delim (-C) ';' to out.cvs. It will use default \n"
