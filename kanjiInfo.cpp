@@ -254,7 +254,7 @@ int main(const int argc, const char **const argv) {
         KANJIDICT2 = argv[switchIndexes[ X_KANJIDICT2 ]];
     
 
-    kanjiDB::Wordnet_DictClass Wordnet( WORDNET,kanjiDB::OPTIMIZE::OPTIMIZE_SOME ) );  
+    kanjiDB::Wordnet_DictClass Wordnet( WORDNET,kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );  
     kanjiDB::jmdict_InfoClass Jmdict  ( JMDICT, kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
     kanjiDB::kanjiDict2_InfoClass kanjiDict2( KANJIDICT2 );
     ParseFileClass cvsFile( inputFile );

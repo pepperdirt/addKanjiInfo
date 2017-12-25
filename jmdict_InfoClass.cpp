@@ -289,7 +289,7 @@ jmdict_InfoClass::~jmdict_InfoClass()
 }
 
 // Call setKanji(unsigned char *kanji) before calling kunyomi;
-std::vector<ustring> jmdict_InfoClass::kunyomi()
+std::vector<ustring> jmdict_InfoClass::kunyomi() const
 {
     std::vector<ustring> words ;//this vector will be returned    
     return words; 
@@ -345,7 +345,7 @@ std::vector<ustring> jmdict_InfoClass::kunyomi()
 
 
 // Call setKanji(unsigned char *kanji) before calling onyomi;
-std::vector<ustring> jmdict_InfoClass::onyomi()
+std::vector<ustring> jmdict_InfoClass::onyomi() const
 {                     
     std::vector<ustring> words ;//this vector will be returned    
     return words;
@@ -425,6 +425,7 @@ void jmdict_InfoClass::help(
     tmp-= KANJI_POS;
     tmp+= begPos; 
     
+    // Find next Index ( +1 );
     std::size_t indexKey = KanjiInfoClass::getIndex() + 1;
     if( indexKey >= getKeySize() ) { return; }
     

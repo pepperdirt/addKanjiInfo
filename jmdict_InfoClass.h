@@ -36,8 +36,8 @@ class jmdict_InfoClass: public KanjiInfoClass {
             explicit jmdict_InfoClass(const char fName[], const OPTIMIZE &OptimizeLevel );
            ~jmdict_InfoClass();
 
-           std::vector<ustring> kunyomi  ();
-           std::vector<ustring> onyomi   ();     
+           std::vector<ustring> kunyomi () const;
+           std::vector<ustring> onyomi  () const;     
            void help(unsigned char *retval);
            void translate(unsigned char *retval);
            std::size_t posOfHiragana(const unsigned char *buff, 

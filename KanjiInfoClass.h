@@ -156,8 +156,8 @@ class KanjiInfoClass {
                return 1;
            }
 
-           virtual std::vector<ustring> onyomi()   = 0; // DB disables const keyword;
-           virtual std::vector<ustring> kunyomi()  = 0;           
+           virtual std::vector<ustring> onyomi()  const   = 0; // DB disables const keyword;
+           virtual std::vector<ustring> kunyomi() const   = 0;           
            
     private:
            // Only used by non-virtual member functions.

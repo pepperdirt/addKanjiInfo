@@ -28,8 +28,8 @@ class kanjiDict2_InfoClass: public KanjiInfoClass {
            void genericReadSingle( char *ret, int retLEN, const unsigned char *begTag,
                                      const char *end="</" ) const;
 
-           std::vector<ustring> kunyomi  () {return (genericRead( (const unsigned char *)"=\"ja_kun\">"  )); }               
-           std::vector<ustring> onyomi   () {return (genericRead( (const unsigned char *)"=\"ja_on\">"  )); }     
+           std::vector<ustring> kunyomi  ()const {return (genericRead( (const unsigned char *)"=\"ja_kun\">"  )); }               
+           std::vector<ustring> onyomi   ()const {return (genericRead( (const unsigned char *)"=\"ja_on\">"  )); }     
            void translate(char *retval, int len=0); // 0 is INFINITY len;
                             
            std::size_t posOfHiragana(const unsigned char *buff, 
