@@ -23,7 +23,7 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2017/12/26  - Version 0.2.0
+	-Last Updated:2017/12/26  - Version -.-.-
                                 + So many CLI switches added... Unfortunately, not properly documenting...
                                 + Added Wordnet project to main;
                               - Version 0.1.3
@@ -423,7 +423,7 @@ int main(const int argc, const char **const argv) {
             // Currently on;
 
             // if sentences switch used, and field is FIRST(ONLY) field in fieldToSearch,
-            if( (KHelpFLAGS & S_FLAG) && printToField == fieldsToSearch[0] ) { 
+            if( (KHelpFLAGS & S_FLAG) && fieldNumber == fieldsToSearch[0] ) { 
                 std::size_t beforeKanji = 0;
                 std::vector<std::size_t> kanjipositions = posOfKanji(parseFile, (unsigned char *)buff);
                 std::vector<std::size_t> endOff = findOffsetFromPos(parseFile,
@@ -481,27 +481,23 @@ int main(const int argc, const char **const argv) {
                 sentenceToAdd.push_back( BR );
             }
 
-
-
-            if(  printToField == fieldsToSearch[0] ) { 
-std::cout << "DoGloss; ";
+            if(  fieldNumber == fieldsToSearch[0] ) { 
                 if( doGloss ||  doSynsets || doGiveSimilarTerms || doRelationWordnetSentences ) { 
-
                     // Addition of Wordnet Project
                     // These are listed FIRST, meaning they show first in cards;
                     const int GLOSS_TERM_SIZE = 80;
                     unsigned char glossTerm[GLOSS_TERM_SIZE+1];
+
                     retrieveGlossTerm(glossTerm, GLOSS_TERM_SIZE, buff, GLOSS_DELIM );
-                    
                     // Cannot do anything if not found in Wordnet dict.
                     
                     // Success
                     if( Wordnet.setKanji( glossTerm ) == 0 ) {
                         unsigned char gloss[320];
                         
-                            std::size_t INDEX_OF_TERM = Wordnet.getIndex();  // Term ids
-                            std::vector<ustring> lexiconIds = Wordnet.lexiconID();
-                            std::vector<ustring> definitions = defineGloss(Wordnet, lexiconIds, 3 );
+                        std::size_t INDEX_OF_TERM = Wordnet.getIndex();  // Term ids
+                        std::vector<ustring> synsetIDs = Wordnet.synset();
+                        std::vector<ustring> definitions = defineGloss(Wordnet, synsetIDs, 3 );
                         if( definitions.size() ) { 
                             // If Gloss can also add switches for -G/L/S
 
@@ -513,8 +509,7 @@ std::cout << "DoGloss; ";
                             std::vector<ustring> exampleSentences;
                             if( doRelationWordnetSentences ) { 
                                 // Sets synsets inside function, using sysnetIDs; 
-                                std::vector<ustring> synsetIDs = Wordnet.synset();    
-                                const unsigned char **holdSynsetIDs = (const unsigned char**)&synsetIDs[0];
+                                // const unsigned char **holdSynsetIDs = (const unsigned char**)&synsetIDs[0];
                                 // Make sure is set before moving into Function;
                                 Wordnet.setIndex( INDEX_OF_TERM );
                                 //std::size_t HOLD_POS = Wordnet.setSynsetPos( holdSynsetIDs[ holdSynsetID_Index ] ); 
@@ -526,7 +521,7 @@ std::cout << "DoGloss; ";
                             
                             std::vector<ustring> termsMatchingSynsets;
                             if( doSynsets ) { 
-                                termsMatchingSynsets = synsetIdWrittenForm( Wordnet );
+                                termsMatchingSynsets = Wordnet.synset();
                             }
                             doSynsets = termsMatchingSynsets.size();
 
@@ -549,7 +544,7 @@ std::cout << "DoGloss; ";
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
-                                        sentenceToAdd.push_back( furiganaizedSentence );
+                                        wordnetInfoToAdd.push_back( furiganaizedSentence );
                                     }
                                     else { 
                                         wordnetInfoToAdd.push_back(definitions[i] );
@@ -570,7 +565,7 @@ std::cout << "DoGloss; ";
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
-                                        sentenceToAdd.push_back( furiganaizedSentence );
+                                        wordnetInfoToAdd.push_back( furiganaizedSentence );
                                     }
                                     else { 
                                         wordnetInfoToAdd.push_back(termsMatchingSynsets[i]);
@@ -592,7 +587,7 @@ std::cout << "DoGloss; ";
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
-                                        sentenceToAdd.push_back( furiganaizedSentence );
+                                        wordnetInfoToAdd.push_back( furiganaizedSentence );
                                     }
                                     else { 
                                         wordnetInfoToAdd.push_back(exampleSentences[i]);
@@ -613,7 +608,7 @@ std::cout << "DoGloss; ";
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
-                                        sentenceToAdd.push_back( furiganaizedSentence );
+                                        wordnetInfoToAdd.push_back( furiganaizedSentence );
                                     }
                                     else { 
                                         wordnetInfoToAdd.push_back(termsSimilarToTerm[i]);
@@ -851,7 +846,6 @@ std::cout << "DoGloss; ";
        }
         
          
-        
     } 
     out.close();
     std::cout.rdbuf(coutbuf); //reset to standard output again    
@@ -1345,13 +1339,18 @@ void retrieveGlossTerm(unsigned char *retGloss,
                        const unsigned char *const DELIM)
 {
     retGloss[0] = '\0';
-    int strSize = 0; while( str[ strSize     ] ) { strSize++;   }
-    int delimSize=0; while( DELIM[ delimSize ] ) { delimSize++; }
+    int strSize = 0; 
+    if( !str )
+        return ; 
+    while( str[ strSize     ] ) { strSize++;   }
+ 
+    int delimSize=0; 
+    if( DELIM ) 
+        while( DELIM[ delimSize ] ) { delimSize++; }
     int startRead = 0; // Either after *DELIM OR at pos 0 of *str;
     int endRead = strSize;
     
-    
-    for(int i = 0, k; delimSize&& i < strSize; i++) { 
+    for(int i = 0, k; delimSize&& i+delimSize <= strSize; i++) { 
         for(k=0; k < delimSize; k++) { 
             if( str[ i+k ] != DELIM[ k ] )
                 break;
@@ -1381,7 +1380,7 @@ void retrieveGlossTerm(unsigned char *retGloss,
         retGloss[ i ] = str[ pos ]; 
     }
     retGloss[ NUM_CHARS_TO_READ ] = '\0';
-    
+
     return ;
 
 }
@@ -1390,7 +1389,6 @@ void retrieveGlossTerm(unsigned char *retGloss,
 // Probably add as non-member function in class WordnetInfoClass; 
 std::vector<ustring> defineGloss( kanjiDB::Wordnet_DictClass &Wordnet, const std::vector<ustring> synsetIDs, const int numToDefine ) 
 { 
-
     std::vector<ustring> retDef; 
     // Print the first synsetID( snynset ) w/a definition
     const char *const ints = "0123456789";
@@ -1454,6 +1452,7 @@ std::vector<ustring> defineGloss( kanjiDB::Wordnet_DictClass &Wordnet, const std
             holdSynsetID_Index++;
         }
     }
+    return retDef;
 }
 
 // Arg1: Wordnet class
