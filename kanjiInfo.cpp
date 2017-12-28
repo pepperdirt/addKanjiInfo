@@ -24,6 +24,7 @@
  * github:	github.com/pepperdirt
  *
 	-Last Updated:2017/12/26  - Version -.-.-
+	                            + fixed G_GLOSS optional delim add
 	                            + syset now gives getExampleSentences() correct start position
 	                            + Corrected swapped values
 	                            + Removed -L switch, similar term add; 
@@ -246,8 +247,22 @@ int main(const int argc, const char **const argv) {
     if(switchIndexes[ G_GLOSS ]  ) 
         doGloss = 1;
 
-    if( doGloss )  
-        GLOSS_DELIM = (unsigned char *)argv[switchIndexes[ G_GLOSS ]];
+    if( doGloss ) 
+    {  
+        // Test for glossIndx matching another in this set
+        // If match, there was no deliminator supplied( would have been +2 );     
+        int i =0, glossIndex = switchIndexes[ G_GLOSS ] + 1;    
+        for( i =1 ; i < argc; i++) { 
+            if( switchIndexes[ i ] == glossIndex ) { 
+                break; 
+            }    
+        }
+        
+        // Delim exists, add it; 
+        if( i != argc ) {      
+            GLOSS_DELIM = (unsigned char *)argv[switchIndexes[ G_GLOSS ]];
+        }
+    }
 
     if(switchIndexes[ Y_SYNSETS ]  ) 
         doSynsets = 1;
