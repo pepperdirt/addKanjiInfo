@@ -24,6 +24,8 @@
  * github:	github.com/pepperdirt
  *
 	-Last Updated:2017/12/26  - Version -.-.-
+	                            + Removed -L switch, similar term add; 
+                                + Corrected adding Furigana to Wordnet
                                 + So many CLI switches added... Unfortunately, not properly documenting...
                                 + Added Wordnet project to main;
                               - Version 0.1.3
@@ -60,11 +62,10 @@
          X_KANJIDICT2=14,
          G_GLOSS=15,
          Y_SYNSETS=16,
-         L_GLOSSSIMILAR=17,
-         R_RELATION_SENTENCES=18,
+         R_RELATION_SENTENCES=17,
 
-         H_help=19,
-         V_version=20,
+         H_help=18,
+         V_version=19,
          END_TERMINATOR=0
     };
     enum K_HELP_FLAGS { F_FLAG = 0x01, O_FLAG = 0x02, K_FLAG = 0x04, S_FLAG = 0x08, T_FLAG = 0x10, Y_FLAG=0x20 };
@@ -140,7 +141,6 @@ int main(const int argc, const char **const argv) {
     int numberOfFields = 3; // Defaults to 3
     int doGloss        = 0;  
     int doSynsets      = 0;
-    int doGiveSimilarTerms    = 0;
     int doRelationWordnetSentences = 0;
 
     
@@ -249,8 +249,6 @@ int main(const int argc, const char **const argv) {
 
     if(switchIndexes[ Y_SYNSETS ]  ) 
         doSynsets = 1;
-    if(switchIndexes[ L_GLOSSSIMILAR ]  ) 
-        doGiveSimilarTerms = 1;
     if(switchIndexes[ R_RELATION_SENTENCES ]  ) 
         doRelationWordnetSentences = 1;
     
@@ -482,7 +480,7 @@ int main(const int argc, const char **const argv) {
             }
 
             if(  fieldNumber == fieldsToSearch[0] ) { 
-                if( doGloss ||  doSynsets || doGiveSimilarTerms || doRelationWordnetSentences ) { 
+                if( doGloss ||  doSynsets || doRelationWordnetSentences ) { 
                     // Addition of Wordnet Project
                     // These are listed FIRST, meaning they show first in cards;
                     const int GLOSS_TERM_SIZE = 80;
@@ -524,13 +522,6 @@ int main(const int argc, const char **const argv) {
                                 termsMatchingSynsets = Wordnet.synset();
                             }
                             doSynsets = termsMatchingSynsets.size();
-
-                            
-                            std::vector<ustring> termsSimilarToTerm;
-                            if( doGiveSimilarTerms ) { 
-                                termsSimilarToTerm = synsetIdWrittenForm( Wordnet );
-                            }
-                            doGiveSimilarTerms = termsSimilarToTerm.size();
                             
 
                             // Add to AddToFileSelected; 
@@ -540,7 +531,7 @@ int main(const int argc, const char **const argv) {
                                 for(int i=0, MAX_ =definitions.size() ; i < MAX_; i++) { 
                                     wordnetInfoToAdd.push_back(GLOSS_HEADER);
                                     
-                                    if( doFuriganize ) {
+                                    if( (KHelpFLAGS & F_FLAG)  ) {
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
@@ -561,7 +552,7 @@ int main(const int argc, const char **const argv) {
                                 for(int i = 0; i < doRelationWordnetSentences; i++) {
                                     wordnetInfoToAdd.push_back(SENTENCES_ADDED_HEADER);
 
-                                    if( doFuriganize ) {
+                                    if(  (KHelpFLAGS & F_FLAG)  ) {
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
@@ -583,7 +574,7 @@ int main(const int argc, const char **const argv) {
                                 for(int i = 0; i < doSynsets; i++) {
                                     wordnetInfoToAdd.push_back(SYNSET_HEADER);                                    
                                     
-                                    if( doFuriganize ) {
+                                    if(  (KHelpFLAGS & F_FLAG)  ) {
                                         Jmdict.addFurigana(tt[ i ], 
                                                            furiganaizedSentence, 
                                                            MAX_LEN_FURIGANAIZED);
@@ -593,27 +584,6 @@ int main(const int argc, const char **const argv) {
                                         wordnetInfoToAdd.push_back(exampleSentences[i]);
                                     }
                                     wordnetInfoToAdd.push_back(END_SYNSET);
-                                    wordnetInfoToAdd.push_back(space );
-                                }
-                                wordnetInfoToAdd.push_back(BR );
-                            }
-                            
-                            if( doGiveSimilarTerms ) { 
-                                wordnetInfoToAdd.push_back( (unsigned char *)"Words similar to Term: ");
-                                const unsigned char **tt   = ((const unsigned char **)&termsSimilarToTerm[0]);
-                                for(int i = 0; i < doGiveSimilarTerms; i++) {
-                                    wordnetInfoToAdd.push_back(SIMILAR_GLOSS_HEADER);
-
-                                    if( doFuriganize ) {
-                                        Jmdict.addFurigana(tt[ i ], 
-                                                           furiganaizedSentence, 
-                                                           MAX_LEN_FURIGANAIZED);
-                                        wordnetInfoToAdd.push_back( furiganaizedSentence );
-                                    }
-                                    else { 
-                                        wordnetInfoToAdd.push_back(termsSimilarToTerm[i]);
-                                    }
-                                    wordnetInfoToAdd.push_back(END_SIMILAR_GLOSS);
                                     wordnetInfoToAdd.push_back(space );
                                 }
                                 wordnetInfoToAdd.push_back(BR );
@@ -913,9 +883,6 @@ void getSwitchIndex(unsigned int *const ret, const int argc, const char **const 
                case 'Y':
                     ret[ Y_SYNSETS ] = i+1;
                     break;
-               case 'L':
-                    ret[ L_GLOSSSIMILAR ] = i+1;
-                    break;
                
                case 'J': 
                     ret[ J_JMDICT ] = i+1; 
@@ -1053,7 +1020,7 @@ std::cout << "Insert Kanji Info from file in batch.\n"
          << "\t[-P ##] [-F ##] [-K [ F ] [ O ] [ K ] [ S ] [ T ] [ Y ]]  \n"
          << "\t[-O OutputFile] [-E file] [-N ##] \n"
          << "\t[-J JMdict_Dictionary ] [-W jpn_wn_lmf.xml] [-X kanjidic2.xml] \n"
-         << "\t[-M] [-G [Delim]] [-Y] [-L] [-R ] [-V] [-H]\n"
+         << "\t[-M] [-G [Delim]] [-Y] [-R ] [-V] [-H]\n"
 
          << "\nDictionaries -J and -W are Requried. Download these First and\n"
          << "supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
@@ -1086,7 +1053,6 @@ std::cout << "Insert Kanji Info from file in batch.\n"
         << "\t Defaults to whole field; Optional specify deliminator surrounding\n"
         << "\t term in order to tell program what term to define\n"
         << "  -Y\tAdd Synsets (from Wordnet) from fields specified by -S switch\n"
-        << "  -L\tAdd Similar meaning Terms.\n"
         << "  -R\tAdd sentences relating to term from Wordnet Project\n"
 		<< "  -N\tNumber of fields in cvs file. defaults to 3 if not specified\n"
 		<< "  -O\tOutput file name. Defaults to stdout.\n"
