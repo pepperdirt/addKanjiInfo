@@ -24,6 +24,7 @@
  * github:	github.com/pepperdirt
  *
 	-Last Updated:2017/12/26  - Version -.-.-
+	                            + syset now gives getExampleSentences() correct start position
 	                            + Corrected swapped values
 	                            + Removed -L switch, similar term add; 
                                 + Corrected adding Furigana to Wordnet
@@ -1439,6 +1440,8 @@ std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
 //   { find next example w/Term included.; }
 
 
+    // Discard return value. Onlly need synsetPos set; for Wordnet.examples(); 
+    std::size_t HOLD_POS = Wordnet.setSynsetPos( holdSynsetIDs[ 0 ] ); // re-lookup for 
     exmapleSentences = Wordnet.examples();
     if( exmapleSentences.size() == 0  ) { 
         // Find next example that contains TERM;
