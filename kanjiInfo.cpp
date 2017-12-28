@@ -24,6 +24,7 @@
  * github:	github.com/pepperdirt
  *
 	-Last Updated:2017/12/26  - Version -.-.-
+	                            + Corrected swapped values
 	                            + Removed -L switch, similar term add; 
                                 + Corrected adding Furigana to Wordnet
                                 + So many CLI switches added... Unfortunately, not properly documenting...
@@ -519,7 +520,7 @@ int main(const int argc, const char **const argv) {
                             
                             std::vector<ustring> termsMatchingSynsets;
                             if( doSynsets ) { 
-                                termsMatchingSynsets = Wordnet.synset();
+                                termsMatchingSynsets = synsetIdWrittenForm( Wordnet );
                             }
                             doSynsets = termsMatchingSynsets.size();
                             
@@ -548,7 +549,7 @@ int main(const int argc, const char **const argv) {
                             
                             if( doRelationWordnetSentences ) { 
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Example Sentences:<br>");
-                                const unsigned char **tt   = ((const unsigned char **)&termsMatchingSynsets[0]);
+                                const unsigned char **tt   = ((const unsigned char **)&exampleSentences[0]);
                                 for(int i = 0; i < doRelationWordnetSentences; i++) {
                                     wordnetInfoToAdd.push_back(SENTENCES_ADDED_HEADER);
 
@@ -559,7 +560,7 @@ int main(const int argc, const char **const argv) {
                                         wordnetInfoToAdd.push_back( furiganaizedSentence );
                                     }
                                     else { 
-                                        wordnetInfoToAdd.push_back(termsMatchingSynsets[i]);
+                                        wordnetInfoToAdd.push_back(exampleSentences[i]);
                                     }
                                     wordnetInfoToAdd.push_back(END_SENTENCES_ADDED);
                                     wordnetInfoToAdd.push_back(BR );
@@ -570,7 +571,7 @@ int main(const int argc, const char **const argv) {
                             const unsigned char *const space = (unsigned char *)" ";
                             if( doSynsets ) { 
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Synsets: ");
-                                const unsigned char **tt   = ((const unsigned char **)&exampleSentences[0]);
+                                const unsigned char **tt   = ((const unsigned char **)&termsMatchingSynsets[0]);
                                 for(int i = 0; i < doSynsets; i++) {
                                     wordnetInfoToAdd.push_back(SYNSET_HEADER);                                    
                                     
@@ -581,7 +582,7 @@ int main(const int argc, const char **const argv) {
                                         wordnetInfoToAdd.push_back( furiganaizedSentence );
                                     }
                                     else { 
-                                        wordnetInfoToAdd.push_back(exampleSentences[i]);
+                                        wordnetInfoToAdd.push_back(termsMatchingSynsets[i]);
                                     }
                                     wordnetInfoToAdd.push_back(END_SYNSET);
                                     wordnetInfoToAdd.push_back(space );
