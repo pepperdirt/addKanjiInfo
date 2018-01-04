@@ -23,7 +23,9 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2018/01/04  - Version 0.1.3a
+	-Last Updated:2018/01/04  - Version 0.1.3b
+	                            + added missing </h1> tag
+                              - Version 0.1.3a
                                 + seems to work 
                               - Version -.-.- 
 	                            + fixed G_GLOSS optional delim add
@@ -51,7 +53,7 @@
    
 */
     enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=1,VERSION_=3 };
-    const char *const versionAlpha = "a";
+    const char *const versionAlpha = "b";
     enum COMMAND_SWITCHES { 
          I_IN_FILE=1, D_Delim=2, 
          S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS=3,
@@ -835,7 +837,7 @@ int main(const int argc, const char **const argv) {
                         if( i == 2 ) { std::cout << BR; }
                         std::cout <<  buff; // Output to .cvs file;
 
-                        if( i == 0 ) { std::cout << BACK_Q_HEADER; }
+                        if( i == 0 ) { std::cout << END_FRONT_MAIN; }
                         if( i == 1 ) { std::cout << END_BACK_MAIN;  }
                         if( i == 2 ) { std::cout << BR; }
                     } 
