@@ -23,7 +23,9 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2017/12/26  - Version -.-.-
+	-Last Updated:2018/01/04  - Version 0.1.3a
+                                + seems to work 
+                              - Version -.-.- 
 	                            + fixed G_GLOSS optional delim add
 	                            + syset now gives getExampleSentences() correct start position
 	                            + Corrected swapped values
@@ -48,7 +50,8 @@
                               - Version 0.0.1
    
 */
-    enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=0,VERSION_=1 };
+    enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=1,VERSION_=3 };
+    const char *const versionAlpha = "a";
     enum COMMAND_SWITCHES { 
          I_IN_FILE=1, D_Delim=2, 
          S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS=3,
@@ -105,7 +108,10 @@ std::size_t largestSize(std::vector<std::size_t> begOff,
 void retrieveGlossTerm(unsigned char *glossTerm, const int &size, const unsigned char *const str, const unsigned char *const DELIM);
 std::vector<ustring> defineGloss(kanjiDB::Wordnet_DictClass &WN, const std::vector<ustring> synsetIDs, const int numToDefine );
 std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
-                                         std::vector<ustring> holdSynsetIDs );
+                                         std::vector<ustring> synsetIDs,
+                                         const unsigned char * term,
+                                         const int &numSentence
+                                        );
 int main(const int argc, const char **const argv) {
 
     if( argc == 1 ) { help(); return 0; }
@@ -129,7 +135,7 @@ int main(const int argc, const char **const argv) {
 //    const char *JMDICT_ALL_LANGS = "JMdict_e_ALL_LANGUAGES.gz";
     
 
-    
+    std::size_t error_afterthoughtVariable = 0;
     // Default value; Can be overridden by UserInput; 
     const char *ENTER = "\x0A";
     const char *outFile = 0; 
@@ -160,6 +166,18 @@ int main(const int argc, const char **const argv) {
     
 //    kanjiDB::jmdict_InfoClass *Jmdict = 0;// ( jmdict );
 //    kanjiDB::kanjiDict2_InfoClass *kanjiDict2 = 0; // ( KANJIDICT2 );
+
+
+
+                            const unsigned char *FRONT_Q_HEADER = (unsigned char *)"<h1 class=\"front_question\">";
+//                            MAIN_KANJI_HEADER = (unsigned char *)"\0";
+                            const unsigned char *END_FRONT_MAIN = (unsigned char *)"</h1>";
+                            
+                            const unsigned char *BACK_Q_HEADER = (unsigned char *)"<p class=\"front_kana\">";
+//                            MAIN_KANJI_HEADER = (unsigned char *)"\0";
+                            const unsigned char *END_BACK_MAIN = (unsigned char *)"</p>";
+                            
+
 
                             const unsigned char *MAIN_KANJI_HEADER = (unsigned char *)"<h1 class=\"main_kanji\">";
 //                            MAIN_KANJI_HEADER = (unsigned char *)"\0";
@@ -260,7 +278,8 @@ int main(const int argc, const char **const argv) {
         
         // Delim exists, add it; 
         if( i != argc ) {      
-            GLOSS_DELIM = (unsigned char *)argv[switchIndexes[ G_GLOSS ]];
+ 	    if( switchIndexes[ G_GLOSS ] != argc ) 
+     		GLOSS_DELIM = (unsigned char *)argv[switchIndexes[ G_GLOSS ]];
         }
     }
 
@@ -323,6 +342,14 @@ int main(const int argc, const char **const argv) {
     const unsigned char *BR        = (unsigned char *)"<br>";
     
     if( !doMarkupFile ) { 
+
+                            FRONT_Q_HEADER = BR;
+                            END_FRONT_MAIN = NULL_CHAR;
+                            
+                            BACK_Q_HEADER = BR;
+                            END_BACK_MAIN = NULL_CHAR;
+
+
                             MAIN_KANJI_HEADER = BR;
                             END_MAIN_KANJI = BR; // Needs Enter key after Kanji; 
                             
@@ -375,7 +402,7 @@ int main(const int argc, const char **const argv) {
     //     -I, -K, -S Searches field(s) S and inserts Kanji information K from input file I;
     
     std::size_t SAVED_POS = cvsFile.getPositionPointer();
-    const std::size_t FIELD_LEN_MAX = largestDelimField( cvsFile, delim );
+    const std::size_t FIELD_LEN_MAX = 1200; //  largestDelimField( cvsFile, delim );
     cvsFile.setGetPointer( SAVED_POS );
     
     
@@ -429,10 +456,11 @@ int main(const int argc, const char **const argv) {
         unsigned char kanji[4];
         std::vector<ustring> AddToFieldSelected;
         std::vector<ustring> sentenceToAdd;
-        std::vector<ustring> wordnetInfoToAdd; 
-        
+        std::vector<ustring> wordnetInfoToAdd;
+	std::size_t lastRead;	
         while( (pos = cvsFile.getLine(buff, FIELD_LEN_MAX, delim)) )
         {
+	    lastRead = pos; 
 
             // Increment through file, keeping track of what Delim num
             // Currently on;
@@ -498,6 +526,7 @@ int main(const int argc, const char **const argv) {
 
             if(  fieldNumber == fieldsToSearch[0] ) { 
                 if( doGloss ||  doSynsets || doRelationWordnetSentences ) { 
+		            int nGloss =0, nSynsets, nRelationWordnetSentences;
                     // Addition of Wordnet Project
                     // These are listed FIRST, meaning they show first in cards;
                     const int GLOSS_TERM_SIZE = 80;
@@ -507,17 +536,39 @@ int main(const int argc, const char **const argv) {
                     // Cannot do anything if not found in Wordnet dict.
                     
                     // Success
-                    if( Wordnet.setKanji( glossTerm ) == 0 ) {
+                    if( glossTerm[0] &&  Wordnet.setKanji( glossTerm ) == 0 ) {
                         unsigned char gloss[320];
                         
-                        std::size_t INDEX_OF_TERM = Wordnet.getIndex();  // Term ids
-                        std::vector<ustring> synsetIDs = Wordnet.synset();
-                        std::vector<ustring> definitions = defineGloss(Wordnet, synsetIDs, 3 );
-                        if( definitions.size() ) { 
+                        std::size_t INDEX_OF_TERM = Wordnet.getIndex();  // Term id
+            			std::vector<ustring> synsetIDs;
+            			const unsigned char **synTmp;
+            
+            			std::vector<ustring> definitions;
+            			if( INDEX_OF_TERM ) {  
+                                        synsetIDs = Wordnet.synset();
+            			    synTmp = (const unsigned char**)&synsetIDs[0];
+            
+            			    Wordnet.setSynsetPos( synTmp[ 0 ] );
+            			    if( Wordnet.defineSynset( gloss ) == 0 ) { 
+            				definitions.push_back(gloss);
+            			        nGloss = 1;
+            			    }
+            
+            
+            			}
+            
+            //			if( synsetIDs.size() ) 
+            			    // BROKEN: !!
+            			    // definitions = defineGloss(Wordnet, synsetIDs, 3 );
+            			
+                        if( (nGloss = definitions.size()) ) { 
+            			    if( !doGloss ) 
+            			        nGloss = 0; 
+
                             // If Gloss can also add switches for -G/L/S
 
 
-                            unsigned int MAX_LEN_FURIGANAIZED = 1800;
+                            unsigned int MAX_LEN_FURIGANAIZED = 2400;
                             unsigned char furiganaizedSentence[ MAX_LEN_FURIGANAIZED + 1 ];
                         
 
@@ -529,23 +580,30 @@ int main(const int argc, const char **const argv) {
                                 Wordnet.setIndex( INDEX_OF_TERM );
                                 //std::size_t HOLD_POS = Wordnet.setSynsetPos( holdSynsetIDs[ holdSynsetID_Index ] ); 
                                 
-                                exampleSentences = getExampleSentences(Wordnet, synsetIDs );
+                                exampleSentences = getExampleSentences( Wordnet,
+                                                                        synsetIDs,
+                                                                        glossTerm,
+                                                                        3
+                                                                      );
+
                             }
-                            doRelationWordnetSentences = exampleSentences.size();                                
+                            nRelationWordnetSentences = exampleSentences.size();                                
 
                             
                             std::vector<ustring> termsMatchingSynsets;
                             if( doSynsets ) { 
+                                const unsigned char **holdSynsetIDs = (const unsigned char**)&synsetIDs[0];
+                                Wordnet.setSynsetPos( holdSynsetIDs[0] );
                                 termsMatchingSynsets = synsetIdWrittenForm( Wordnet );
                             }
-                            doSynsets = termsMatchingSynsets.size();
+                            nSynsets = termsMatchingSynsets.size();
                             
 
                             // Add to AddToFileSelected; 
-                            if( doGloss ) {
+                            if( nGloss ) {
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Gloss:<br>");
                                 const unsigned char **tt   = ((const unsigned char **)&definitions[0]);                                    
-                                for(int i=0, MAX_ =definitions.size() ; i < MAX_; i++) { 
+                                for(int i=0; i < nGloss; i++) { 
                                     wordnetInfoToAdd.push_back(GLOSS_HEADER);
                                     
                                     if( (KHelpFLAGS & F_FLAG)  ) {
@@ -563,10 +621,10 @@ int main(const int argc, const char **const argv) {
                                 wordnetInfoToAdd.push_back(BR );
                             }
                             
-                            if( doRelationWordnetSentences ) { 
+                            if( nRelationWordnetSentences ) { 
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Example Sentences:<br>");
                                 const unsigned char **tt   = ((const unsigned char **)&exampleSentences[0]);
-                                for(int i = 0; i < doRelationWordnetSentences; i++) {
+                                for(int i = 0; i < nRelationWordnetSentences; i++) {
                                     wordnetInfoToAdd.push_back(SENTENCES_ADDED_HEADER);
 
                                     if(  (KHelpFLAGS & F_FLAG)  ) {
@@ -585,10 +643,10 @@ int main(const int argc, const char **const argv) {
                             }
                             
                             const unsigned char *const space = (unsigned char *)" ";
-                            if( doSynsets ) { 
+                            if( nSynsets ) { 
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Synsets: ");
                                 const unsigned char **tt   = ((const unsigned char **)&termsMatchingSynsets[0]);
-                                for(int i = 0; i < doSynsets; i++) {
+                                for(int i = 0; i < nSynsets; i++) {
                                     wordnetInfoToAdd.push_back(SYNSET_HEADER);                                    
                                     
                                     if(  (KHelpFLAGS & F_FLAG)  ) {
@@ -765,14 +823,21 @@ int main(const int argc, const char **const argv) {
             if( fieldNumber > numberOfFields ) {  
                 fieldNumber = 1; 
                 cvsFile.setGetPointer( SAVED_POS );
-                
-                for(int i=0; i < numberOfFields; i++) { 
-                    cvsFile.setGetPointer((cvsFile.getLine(buff, FIELD_LEN_MAX, delim)));
-
+                std::size_t err = 0;
+                for(int i=0; i < numberOfFields; i++) {
+//                    cvsFile.setGetPointer( (err = (cvsFile.getLine(buff, FIELD_LEN_MAX, delim))));
+                    err = cvsFile.getLine(buff, FIELD_LEN_MAX, delim);
                     // Before outputing buff, make sure it wasn't to be
                     // Furiganized first!
-                    if( i+1 != doFuriganize ) { 
+                    if( i+1 != doFuriganize ) {                         
+                        if( i == 0 ) { std::cout << FRONT_Q_HEADER; }
+                        if( i == 1 ) { std::cout << BACK_Q_HEADER;  }
+                        if( i == 2 ) { std::cout << BR; }
                         std::cout <<  buff; // Output to .cvs file;
+
+                        if( i == 0 ) { std::cout << BACK_Q_HEADER; }
+                        if( i == 1 ) { std::cout << END_BACK_MAIN;  }
+                        if( i == 2 ) { std::cout << BR; }
                     } 
                     else 
                     {
@@ -786,9 +851,10 @@ int main(const int argc, const char **const argv) {
                     }
 
                     // Print out Extra information for Field i+1;                    
-                    if( i+1 == printToField ) { 
+                    if( i+1 == printToField ) {
+			   unsigned int sentenceSIZE; 
                         // Start field by printing Sentences!
-                        unsigned int sentenceSIZE = wordnetInfoToAdd.size();
+                        sentenceSIZE = wordnetInfoToAdd.size();
                         if( sentenceSIZE ) {
                             for(unsigned int sentence_counter = 0; sentence_counter < sentenceSIZE; sentence_counter++ ) {
                                 std::cout << wordnetInfoToAdd[ sentence_counter ];
@@ -808,15 +874,15 @@ int main(const int argc, const char **const argv) {
                         }
                         
                         
-                        int vectorSize = AddToFieldSelected.size();
-
-                        for(int j=0; j < vectorSize; j++)
-                        {
-                            std::cout <<  AddToFieldSelected[j]; 
+                        sentenceSIZE = AddToFieldSelected.size();
+                        if( sentenceSIZE ) { 
+                            for(unsigned int j=0; j < sentenceSIZE; j++)
+                            {
+                                std::cout <<  AddToFieldSelected[j]; 
+                            }
+                            // Delete contents of Vector; 
+                            AddToFieldSelected.clear();                            
                         }
-                        
-                        // Delete contents of Vector; 
-                        AddToFieldSelected.clear();
                     }
                     
                     // RE-Insert Deliminator; 
@@ -829,14 +895,31 @@ int main(const int argc, const char **const argv) {
                 // Save POS pointer; 
                 SAVED_POS = cvsFile.getPositionPointer();   
                 fieldNumber = 1; 
+                
+//                if( err == 0 ) { 
+//                if( !buff[0] ) { 
+//                    cvsFile.setGetPointer(( cvsFile.getFileLength()-1 ));
+//                }
             }
        }
         
          
+        // Below off by one. fix later; (reading FIELD_LEN_MAX wont return 0)
+        if( lastRead + FIELD_LEN_MAX < cvsFile.getFileLength() ) { 
+            // stopped prematurely.
+	    // Notify user
+            error_afterthoughtVariable = lastRead;    
+        }
     } 
     out.close();
     std::cout.rdbuf(coutbuf); //reset to standard output again    
 
+    if( error_afterthoughtVariable ) { 
+        std::cout << "Error. Stopped prematurely at line position("
+		  << error_afterthoughtVariable << ").\n"
+		  << "Line exceeded max length("<< FIELD_LEN_MAX <<").\n";
+	return 99;
+    }
     return 0;
 }
 
@@ -1096,7 +1179,7 @@ std::cout << "Insert Kanji Info from file in batch.\n"
 } 
 
 void version(const char **const argv) { 
-    std::cout << *(argv+0) << " Version: "<< VERSION_MAJOR << VERSION_MINOR << VERSION_ << std::endl;
+    std::cout << *(argv+0) << " Version: "<< VERSION_MAJOR << VERSION_MINOR << VERSION_ <<  versionAlpha << std::endl;
 }
 
 
@@ -1326,7 +1409,10 @@ void retrieveGlossTerm(unsigned char *retGloss,
     if( !str )
         return ; 
     while( str[ strSize     ] ) { strSize++;   }
- 
+    
+    if( !strSize ) 
+        return ; 
+
     int delimSize=0; 
     if( DELIM ) 
         while( DELIM[ delimSize ] ) { delimSize++; }
@@ -1385,9 +1471,10 @@ std::vector<ustring> defineGloss( kanjiDB::Wordnet_DictClass &Wordnet, const std
         int numDefined = 0;
         while( numDefined < numToDefine && holdSynsetID_Index < synsetIDs.size()) { 
             int counter = 1;
-            Wordnet.setSynsetPos( holdSynsetIDs[ holdSynsetID_Index ] );
-            if( Wordnet.defineSynset( buff ) == 0 ) { 
-                int shiftRight = 3;
+            
+            if(    Wordnet.setSynsetPos( holdSynsetIDs[ holdSynsetID_Index ] )
+	        && Wordnet.defineSynset( buff ) == 0 ) { 
+/*                int shiftRight = 3;
                 if( counter > 10 ) { shiftRight ++; }
                 int lenBuff = 0; while( buff[ lenBuff ] ) { lenBuff++; }
                 // Moves the Null Character also ( <= );
@@ -1399,20 +1486,23 @@ std::vector<ustring> defineGloss( kanjiDB::Wordnet_DictClass &Wordnet, const std
                     while( tensPos < counter ) { tensPos += 10; n++; }
                     buff[ 0 ] = ints[ n ];
                 }
-                buff[shiftRight-1] = '.'; buff[shiftRight-2] = ' ';  
-                
+                buff[shiftRight-1] = ' '; buff[shiftRight-2] = '.';  
+*/                
                 retDef.push_back( buff );
                 numDefined++; counter++;
                 if( numDefined == numToDefine ) { break; }
             }            
             std::vector<ustring> SynsetId = Wordnet.synRealtions();
-            const unsigned char**ccc = (const unsigned char**)&SynsetId[0];
+	    const unsigned char**ccc; 
+	    if( SynsetId.size() ) 
+                ccc = (const unsigned char**)&SynsetId[0];
             
             for(int a = 0; a < SynsetId.size(); a++) 
             {
-                Wordnet.setSynsetPos( ccc[ a ]  );
-                if( Wordnet.defineSynset( buff ) == 0 ) { 
-                    int shiftRight = 3;
+                ;
+                if(   Wordnet.setSynsetPos( ccc[ a ]  ) 
+		   && Wordnet.defineSynset( buff ) == 0 ) { 
+/*                    int shiftRight = 3;
                     if( counter > 10 ) { shiftRight ++; }
                     int lenBuff = 0; while( buff[ lenBuff ] ) { lenBuff++; }
                     // Moves the Null Character also ( <= );
@@ -1425,7 +1515,7 @@ std::vector<ustring> defineGloss( kanjiDB::Wordnet_DictClass &Wordnet, const std
                         buff[ 0 ] = ints[ n ];
                     }
                     buff[shiftRight-1] = '.'; buff[shiftRight-2] = ' ';  
-            
+*/            
                     retDef.push_back( buff );
                     numDefined++; counter++;
                     if( numDefined == numToDefine ) { break; }
@@ -1441,7 +1531,10 @@ std::vector<ustring> defineGloss( kanjiDB::Wordnet_DictClass &Wordnet, const std
 // Arg1: Wordnet class
 // Arg2: SynsetIds for gathering sentences/gloss
 std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
-                                         std::vector<ustring> synsetIDs )
+                                         std::vector<ustring> synsetIDs,
+                                         const unsigned char * term,
+                                         const int &n
+                                        )
 {
     std::vector<ustring> exmapleSentences;
     if( synsetIDs.size() == 0 ) { return exmapleSentences; }
@@ -1463,7 +1556,7 @@ std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
         
         // std::vector<ustring> lexiconIDs = lexiconID( INDEX_OF_TERM );
         // No examples present; iterate through lexiconIDs, finding Position,
-        int i =0;
+ /*       int i =1;
         while( i  < synsetIDs.size() ) { 
             Wordnet.setSynsetPos( holdSynsetIDs[ i ] );
             if( Wordnet.defineSynset( buff ) == 0 ) { 
@@ -1473,14 +1566,15 @@ std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
         
             i++;
         }
+ */
+        std::vector<ustring> examplesAlreadyAdded;
+        exmapleSentences = getExampleSentences(Wordnet, 
+                                               term,
+                                               n,
+                                               examplesAlreadyAdded
+                                              ); 
+                                             
     }
-    
-    if( exmapleSentences.size() == 0 ) { 
-        // Find another Example sentence containing term; 
-        // Look in ALL example sentences ( just find 2 );
         
-        int a;    
-    }
-    
     return exmapleSentences;
 }

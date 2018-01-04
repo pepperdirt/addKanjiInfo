@@ -10,6 +10,14 @@
 <Synset id='jpn-1.1-15121880-n' baseConcept='3'>
 <SenseAxis id='sa_jpn-1.1-22247' relType='eq_synonym'>
 
+// MAY optimize dictionary:
+       // Simply replace all <Synset id='jpn-1.1-????????-?' 
+       // Replace the ID( past jpn-1.1-') with the RAW number( POSITION of that 
+                                                               particular ID )
+       // THIS ALONE, should speed up lookups considerably. 
+       // Leave the <Synset id='jpn-1.1-01211489-n' baseConcept='3'> tag
+       //  as-is. No need to modify. In fact, it will give the POSITION a value;
+       //  AND if need-be, can use position of that particular tag to track-back to Originating ID
 
 A lexicon entry ( entry for term );
    <LexicalEntry id ='w211719'>
@@ -66,12 +74,24 @@ Definitions of term / Example sentences of term;
 //namespace wordnetDB { 
 namespace kanjiDB { 
 
-  const char Wordnet_DictClass_VERSION[]= "1.0.0";
+  const char Wordnet_DictClass_VERSION[]= "1.0.1";
 /*
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-         Latest update 2017/12/23 - Version 1.0.0
+         Latest update 2017/12/27 - Version 1.0.1
+                                  - Version 1.0.1_b
+                                    + std::size_t  Wordnet_DictClass::setSynsetPos(const unsigned char *const synsetID)
+                                      fixed logic err. Matches OPTIMIzATION functionality; 
+                                    + More functionality.
+                                    + Cleaned up some non-member functions. 
+                                    + Code updated to comply w/Cpp Standards.  
+                                    + getExampleSentences(?) Feature added:  
+                                      - Pass in already added sentences as argument
+                                        check for matches, dont add matches
+                                    + kanjiNumber(const unsigned char *term)
+                                      - fixed to return proper w/Optimization level > 0;
+                                  - Version 1.0.0
                                     + added helper functions;
                                     + kanjiNumber() logic err, flipped
                                     + added Optimization Options(and implemented)
@@ -86,7 +106,9 @@ namespace kanjiDB {
 */
 
 Wordnet_DictClass::Wordnet_DictClass(const char fName[],
-                                     const OPTIMIZE &O)  : WORDNET_OPTIMIZE_LEVEL( O.getVal() ), 
+                                     const OPTIMIZE &O)  : KanjiInfoClass(fName),
+
+WORDNET_OPTIMIZE_LEVEL( O.getVal() ), 
                                                                                                       keytable_DefinitionPos(0),
                                                            savedSynset(1),
                                                            SYNSET_STR((unsigned char *)"synset='jpn-1.1-"), 
@@ -101,11 +123,10 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
                                                            SYNSET_RELATION_TYPE   ((unsigned char *)"relType='"),                           
                                                            WRITTEN_FORM   ((unsigned char *)"writtenForm='"),                           
                                                            SENSE_ID_WRITTEN   ((unsigned char *)"<Sense id='"),                           
-                                                           END_SENSE_ID_WRITTEN   ((unsigned char *)"_"),                           
+                                                           END_SENSE_ID_WRITTEN   ((unsigned char *)"_")                           
                                                            
 
-                                                           KanjiInfoClass(fName)  
-/*: fileLength(getFileLengthInConstructor(fName) ),
+ /*: fileLength(getFileLengthInConstructor(fName) ),
   file(getFileInConstrutor(fName) ),  
   ptrPosition(0) */
 {  
@@ -118,14 +139,10 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
 */
     std::size_t pos = 3; // FIRST KANJI;
     const int KEB_TAG_SIZE =  9;
-    const int KEB_END_TAG_SIZE = 1;
     unsigned char keb[KEB_TAG_SIZE+1] = "tenForm='"; // Term is between the '' marks. 
-    unsigned char endKeb[KEB_END_TAG_SIZE+1] = "'";
-    const unsigned char *db = KanjiInfoClass::getDB();
+    const unsigned char *const db = KanjiInfoClass::getDB();
     
     std::vector<std::size_t> keysIndex; // SHOULD BE NAMED POSITIONS!!
-    std::size_t len = KanjiInfoClass::fileLen();
-    
     std::vector<unsigned int> keySum;           // First 3 bytes summed up. 
                                                 // Index values match that of keysIndex[]; 
     unsigned int numericKeySum = 0;
@@ -164,12 +181,12 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
     // Now have numeric values. Sort keys from Smallest to greatest values; 
     // -1: MUST NOT move the last index(end of file), Would need to code for this exception otherwise
     unsigned int kebSize = keysIndex.size() - 1; 
-    for(int i=0; i < kebSize; i++) { 
+    for(unsigned int i=0; i < kebSize; i++) { 
         unsigned int smallest = keySum[i];
         unsigned int indx = i;
         
         // Find smallest kebValues ( term );
-        for(int k = i; k < kebSize; k++) { 
+        for(unsigned int k = i; k < kebSize; k++) { 
             if( keySum[ k ] < smallest ) { 
                 smallest = keySum[ k ];
                 indx = k;
@@ -193,7 +210,7 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
     kebSize++; 
     
  if( WORDNET_OPTIMIZE_LEVEL == 1 ) { return ; }
- return ; // Cannot optimize further (at current state)
+ return ;
      // Too memory intensive to create 2nd lookup table; 
     // Need to rethink methodology; 
     
@@ -201,16 +218,11 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
     // Search for tag: 
     keytable_DefinitionPos = new std::size_t [ kebSize + 1 ];
 
-    const int posFromTermPos = 35; // (-);
-    const int lenOfTermNumber = 6;
     const int lenOfSenseSyn = 8;
-    const int lenOftermDefineTag = 12;
-    unsigned char termNumBuff[ lenOfTermNumber+lenOfSenseSyn+8+1 ];
     const unsigned char * termDefineTag = (unsigned char *)"<Synset id='"; // FULL STRING(20): <Synset id='jpn-1.1-????????-?' baseConcept='?'>
     const unsigned char * senseSynTag   = (unsigned char *)"<Sense id='"; // +19 to synRefNum
-    const unsigned char * endLexiconEntry= (unsigned char *)"</LexicalEntry>";
     const int lenTillSenseRefNum = 19;
-    const unsigned char * synIdString = (unsigned char *)"jpn-1.1-"; // (-20) == start pos of ( termDefineTag ) (if match to Snyset tag)
+    // const unsigned char * synIdString = (unsigned char *)"jpn-1.1-"; // (-20) == start pos of ( termDefineTag ) (if match to Snyset tag)
     const int lenSynIdString = 8;
     const std::size_t START_OF_DEFINITIONS  = KanjiInfoClass::searchStr( termDefineTag, 1 ) - 2;
 
@@ -220,14 +232,6 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
         definitionIndexKeyPos.push_back( pos );
         pos++;
     }
-
-
-    pos = 0;
-    while( pos < lenSynIdString ) { 
-        termNumBuff[ pos ] = synIdString[ pos ];            
-        pos++;
-    }
-    termNumBuff[ lenSynIdString ] = '\0';
 
 
     // Holds only the id of senceSyn;
@@ -242,7 +246,7 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
         // <Synset id='jpn-1.1-01211489-n' baseConcept='3'>
 
         // Get the sence number ( matches to a definnition and example sentence; )x
-        KanjiInfoClass::setIndex( i );
+        KanjiInfoClass::setIndex( i+1 );
 
         // get searchStrings for below loop. 
         // Finding definition/example positions for each SynSence;
@@ -250,16 +254,13 @@ Wordnet_DictClass::Wordnet_DictClass(const char fName[],
         
         k=0;
         while( k < lenOfSenseSyn ) { 
-            termNumBuff[ lenSynIdString + k ] = db[ pos+ lenTillSenseRefNum + k ];
             synNumberONLY[ k ] = db[ pos+ lenTillSenseRefNum + k ];
             k++;
         }
-        termNumBuff[ lenSynIdString + lenOfSenseSyn ] = '\0';
         synNumberONLY[ k ] = '\0';
 
 
         // Start an array of synSets
-        std::size_t synSetPos[50];
         int synSetPosSize = 0;
 
         // Find Definition/Example position; Place in synSetPos[]; 
@@ -311,7 +312,7 @@ Wordnet_DictClass::~Wordnet_DictClass()
 
 unsigned int Wordnet_DictClass::termValue(const std::size_t pos) const
 {
-    const unsigned char * db = getDB();
+    const unsigned char *const  db = getDB();
     
     return (
             db[ pos +2 ] | ( 
@@ -517,8 +518,8 @@ std::size_t  Wordnet_DictClass::setSynsetPos(const unsigned char *const synsetID
     }
 
     const std::size_t STARTING_POS = SIZE;
-    const int len_GLOSS_STR =  strlen( (char *)GLOSS_STR );
-
+    const unsigned char *const singleQuote = (unsigned char *)"'"; // END_EXAMPLE_STR
+    
     std::size_t pos = STARTING_POS;
     if(!pos) { pos = 1; }
     std::size_t FOUND_POS = 1;
@@ -527,9 +528,8 @@ std::size_t  Wordnet_DictClass::setSynsetPos(const unsigned char *const synsetID
     while( (pos = KanjiInfoClass::searchStr( SYNSET_TAG, pos )) ) 
     {
         // <Synset id='jpn-1.1-XXXXXXXX-a' baseConcept='3'>    
-        pos+= 12; // Skip past delim char "'";
+        pos+= 20; // Match OPTIMIZED Wordnet, position to Start of ID(NUM ONLY); 
 //        if( (FOUND_POS = KanjiInfoClass::searchStr( synsetID, END_LEXICON_ENTRY_STR, pos )) ) 
-const unsigned char *const singleQuote = (unsigned char *)"'"; // END_EXAMPLE_STR
         if( (FOUND_POS = KanjiInfoClass::searchStr( synsetID, singleQuote, pos )) ) 
         {
             // Pos of synsetID ( NUMBER_ONLY )
@@ -541,6 +541,22 @@ const unsigned char *const singleQuote = (unsigned char *)"'"; // END_EXAMPLE_ST
     return 0;
 }
 
+
+// offset+9 of savedSynset;
+//   <Synset id='jpn-1.1-01211489-n' baseConcept='3'>
+void Wordnet_DictClass::synsetGrammarNote(unsigned char *retVal) const
+{
+    retVal[0] = '\0';
+    
+
+    const unsigned char *const END_quote = (unsigned char *)"'";
+    
+    std::size_t pos = savedSynset+9;
+    KanjiInfoClass::readStr( retVal, 
+                             KanjiInfoClass::searchStr(END_quote, pos) - pos, // SIZE
+                             pos );
+    return ;    
+}
 // Then find if a match to synsetID; 
 int Wordnet_DictClass::defineSynset(unsigned char *retVal) const
 {
@@ -565,6 +581,7 @@ std::vector<ustring> Wordnet_DictClass::examples() const
     std::vector<ustring> retExamples;
     unsigned char buff[320];
     const int len_EXAMPLE_STR = strlen( (char *)EXAMPLE_STR);
+
     std::size_t pos = savedSynset;
     
     while( (pos = KanjiInfoClass::searchStr( EXAMPLE_STR, END_SYNSET_TAG, pos )) )
@@ -638,6 +655,13 @@ std::vector<ustring> Wordnet_DictClass::synRealtionTypes() const
 // Defaults to POSITION instead of Index of Kanjil; 
 std::size_t Wordnet_DictClass::kanjiNumber(const unsigned char *term) const
 {
+    const int term_MAX_SIZE = 24;
+    if( !term ) { return 0; }
+    
+    const int STR_SIZE = strlen((char *)term);
+    if( STR_SIZE > term_MAX_SIZE ) { return 0; }
+
+    
     std::size_t beg = 0;
     // This should be safe (getKeyPos won't throw run-time error ); 
     // Safe to run below searchStr(); - Arg2 MUST NOT be 0 when no keyTable set ( Wordnet.getKeySize()==0 );
@@ -650,12 +674,13 @@ std::size_t Wordnet_DictClass::kanjiNumber(const unsigned char *term) const
     }
 
     // Find strPos;
-    const int STR_SIZE = strlen((char *)term);
-    unsigned char tmp[ STR_SIZE + 2 + 1 ];
+    int STR_LEN = STR_SIZE;
+    if( STR_LEN > term_MAX_SIZE ) { STR_LEN = term_MAX_SIZE; }
+    unsigned char tmp[ term_MAX_SIZE + 2 + 1 + 1 ]; // Prepend ='(2), Suffix '(1) + NULL_TERMINATOR(1)
     int i=0; 
     tmp[ i ] = '\'';
     i++;
-    for(int j=0; j< STR_SIZE; j++, i++) { 
+    for(int j=0; j < STR_LEN; j++, i++) { 
      tmp[ i ] = term[ j ];
     }
     tmp[ i ] = '\'';
@@ -663,12 +688,30 @@ std::size_t Wordnet_DictClass::kanjiNumber(const unsigned char *term) const
     i += 1;
     std::size_t POSITION;
     
-    if( WORDNET_OPTIMIZE_LEVEL > 0 ) { 
+    if( WORDNET_OPTIMIZE_LEVEL > 0 ) {
+        // Sets str to search to char AFTER quote char; (including ending quote delim );
+        for(i=0; i < STR_LEN; i++){ 
+            tmp[ i ] = tmp[i+1];
+        } 
+        tmp[ i ] = '\'';
+        tmp[ i+1 ] = '\0';
+        
         std::size_t indx = 1;
         const unsigned char *const ending_char_singlequote = (unsigned char *)"'";
         
         std::size_t SIZE = getKeySize();
-        for(indx; indx < SIZE; indx++) { 
+        // Strict search, only returns term matching whole word in dict. 
+        for(indx = 1; indx < SIZE; indx++) { 
+            POSITION = getKeyPos(indx);
+            
+            if( searchStr( tmp, ending_char_singlequote, POSITION ) == POSITION ) { 
+                return indx; 
+            }
+        }
+
+
+        // Loose search ( returns positive for match INSIDE whole term;
+        for(indx = 1; indx < SIZE; indx++) { 
             POSITION = getKeyPos(indx);
             if( searchStr( term, ending_char_singlequote, POSITION ) ) { 
                 return indx; 
@@ -691,72 +734,11 @@ std::size_t Wordnet_DictClass::kanjiNumber(const unsigned char *term) const
 }
 
 
-// -35 pos from termPos == TermNumber; 
-void getTermNumber( char *retVal, std::size_t termPos )
-{
-    retVal[0] = '\0';
-    const int posFromTermPos = 35; // (-);
-    const int lenOfTermNumber = 6;
-    
-//    if( termPos > posFromTermPos ) { 
-///        retVal[
-//    }
-    
-            
-}
 // Call setKanji(unsigned char *kanji) before calling kunyomi;
 std::vector<ustring> Wordnet_DictClass::kunyomi() const
 {
     std::vector<ustring> words ;//this vector will be returned    
     return words; 
-    
-    const unsigned char * tmp = getDB();
-    const std::size_t KANJI_POS = getPos();
-    const unsigned char Compounds[]="Compounds:";
-    const unsigned char HARD_ENTER[]="\x0D\x0A";
-    tmp+= KANJI_POS; // NEXT LINE; 
-    std::size_t farPtrKana = 0 ; //posOfHiragana( tmp ); // offset from tmp; 
-    if( farPtrKana ) { farPtrKana--; }    
-
-    // Test for Hiragana
-    std::size_t FILE_offsetCompounds = searchStr( Compounds );
-
-    if( FILE_offsetCompounds < (getPos() + farPtrKana) ) { 
-        return words; 
-    }
-
-    tmp+= farPtrKana;
-    
-    // Hiragana present; Find ending pos; 
-    FILE_offsetCompounds = searchStr( HARD_ENTER, KANJI_POS+farPtrKana );
-    
-    // length; Or,  IndexOf( 0x0D ); 
-    int lenghtOfKana = FILE_offsetCompounds - (KANJI_POS + farPtrKana);
-    
-    // Adds the Kana to words; 
-    unsigned char kana[80];
-    for(int i=0; i < lenghtOfKana; i++) { 
-        int len = 0;
-        while( i+len < lenghtOfKana&&
-               tmp[i+len] != ','  &&
-               tmp[i+len] != 0x0D &&
-               tmp[i+len] != 0x0A  )
-        { 
-            kana[len] =  tmp[i+len];   
-            len++;
-        }
-        kana[len] = '\0';
-        
-        words.push_back(kana);
-
-        // Finds next Kana; 
-        len++; // skips over delim ( , ); 
-        while( tmp[i+len] == ' ' ) { len++; }
-        i+= len - 1;
-    }   
-    tmp-= ( KANJI_POS + farPtrKana );
-   
-    return words;
 }
 
 
@@ -765,50 +747,6 @@ std::vector<ustring> Wordnet_DictClass::onyomi() const
 {                     
     std::vector<ustring> words ;//this vector will be returned    
     return words;
-    
-    const unsigned char Compounds[]="Compounds:"; 
-
-    const unsigned char * tmp = getDB();
-    tmp+= getPos();
-    std::size_t farPtrKana = 0; // posOfKatakana( tmp ); // offset from tmp; 
-    if( farPtrKana ) { farPtrKana--; }
-    std::size_t FILE_offsetCompounds = searchStr( Compounds ); // offset from beg file; 
-    
-    if( FILE_offsetCompounds < (getPos() + farPtrKana) ) { 
-        // No Katakana present; 
-        // Cannot proceed without finding "Compounds" also ( Buffer too small) ??
-        return words; 
-    }
-    
-    // -2 == 0x0D 0A before Compounds; 
-    int lenghtOfKana = FILE_offsetCompounds - (getPos() + farPtrKana) - 2;
-    tmp-= getPos();
-    tmp+= getPos() + farPtrKana;
-
-    // Adds the Kana to words; 
-    unsigned char kana[80];
-    for(int i=0; i < lenghtOfKana; i++) { 
-        int len = 0;
-        while( i+len < lenghtOfKana&&
-               tmp[i+len] != ','  &&
-               tmp[i+len] != 0x0D &&
-               tmp[i+len] != 0x0A  )
-        { 
-            kana[len] =  tmp[i+len];   
-            len++;
-        }
-        kana[len] = '\0';
-        
-        words.push_back(kana);
-
-        // Finds next Kana; 
-        len++; // skips over delim ( , ); 
-        while( tmp[i+len] == ' ' ) { len++; }
-        i+= len - 1;
-    }
-    
-    tmp-= (farPtrKana + getPos());
-    return words; 
 }
 
 
@@ -828,8 +766,6 @@ std::vector<ustring> synsetIdWrittenForm(Wordnet_DictClass &WN)
 
     const unsigned char ** sr  = (const unsigned char**)&synsetRelations[0];
     const int synSIZE = synsetRelations.size();
-    const unsigned char *const senceIdTag = (unsigned char *)"<Sense id='";
-    const int senceIdTagSize = 11;
     
     const unsigned char *const writtenFormTag =    (unsigned char *)"<Lemma writtenForm='";
     const int writtenFormTagSize = 20;
@@ -848,7 +784,8 @@ std::vector<ustring> synsetIdWrittenForm(Wordnet_DictClass &WN)
         
         // Iterate through synsetRelations();
         // Search for matches in current LexiconEntry; 
-        for(int i=0, sizeOf; i < synSIZE; i++) {
+	std::size_t sizeOf; // comp with strlen()
+	for(int i=0; i < synSIZE; i++) {
             pos2 = WN.searchStr( sr[i], EndLexiconEntry, pos );
             
             // Match found, read writtenForm and add to retWrittenForm( if not duplicate )
@@ -905,85 +842,362 @@ std::vector<ustring> synsetIdWrittenForm(Wordnet_DictClass &WN)
     return retWrittenForm;    
 }
 
+
+
+// Helper function, returns sentences containing term;
+// Arg1: retValue - positions of ID(NUM_ONLY) and Sentence pairs.
+// Arg2: this
+// Arg3: term to use when searching for sentences
+// Arg4: tag to search for within SYNSET tag "<SYNSET"
+// Arg5: ending delim string for Arg4.
+// Arg6: number of sentences to grab ( if avalaible )
+// Arg7: example sentences already added. 
+void getExampleSentences_getPositions(   std::size_t *retPos,
+                                         const Wordnet_DictClass &WN,
+                                         const unsigned char *const term,
+                                         const unsigned char *const tagInsideSynset,
+                                         const unsigned char *const tagInsideSynsetEnd,
+                                         const int &nsize,
+                                         std::vector<ustring> examplesAlreadyAdded )
+{
+    retPos[0] = 0; retPos[1] = 0; retPos[2] = 0; // ending delim;
+    int retPosIndex = 0;
+    
+    // retPos max will be third of MAX_SIZE; ( holds synID / sentence Position pairs / sentencePositionIndex_WITHIN_synID );
+    const int examplesAlreadyAdded_MAX_SIZE = 254;
+    const int RETPOS_SIZE_ALLOCATED = examplesAlreadyAdded_MAX_SIZE / 3; 
+
+    if( !term || nsize <= 0 ) { return ; }
+
+    const unsigned char **alreadyAdded = 0;
+    const int NUM_EXAMPLES_ALREADY_ADDED = examplesAlreadyAdded.size();
+    int NUM_EXAMPLES_ALREADY_ADDED_LEN = NUM_EXAMPLES_ALREADY_ADDED;
+    if( NUM_EXAMPLES_ALREADY_ADDED_LEN > examplesAlreadyAdded_MAX_SIZE )
+        NUM_EXAMPLES_ALREADY_ADDED_LEN = examplesAlreadyAdded_MAX_SIZE; 
+    int LENS_ALREADY_ADDED[ +1 ];
+    if( NUM_EXAMPLES_ALREADY_ADDED_LEN  ) 
+    {
+       alreadyAdded = (const unsigned char**)&examplesAlreadyAdded[0];
+       int len = 0;
+       for(int i =0; i < NUM_EXAMPLES_ALREADY_ADDED_LEN; i++) { 
+           len = 0;
+           while( alreadyAdded[i][len] ) { len++; }
+           
+           LENS_ALREADY_ADDED[ i ] = len;
+       }
+    }
+
+    int numSentenceCollected = 0;
+
+    const int NEAR_PTR_SYNID_NUM_ONLY = 20;
+    const unsigned char *const SYNSET_TAG = (unsigned char *)"<Synset id";    
+    const int lenTagInsideSynset = strlen( (char *)tagInsideSynset ); // 
+    const unsigned char *const END_SYNSET_TAG = (unsigned char *)"</Synset>";
+    
+    unsigned char buff[320];
+    std::size_t pos = WN.searchStr( SYNSET_TAG, 1 ); // Starting sysnet def/example; 
+    std::size_t synid_pos = pos; // stores synid pos; 
+
+
+    while( (synid_pos = WN.searchStr( SYNSET_TAG, synid_pos ) )) { 
+        synid_pos += NEAR_PTR_SYNID_NUM_ONLY; 
+        pos = synid_pos;
+        
+        // May be mutiple Examples; Test for all of them to add. 
+        int indexWithinSynsetTag = 0;
+        while( (pos = WN.searchStr( tagInsideSynset, END_SYNSET_TAG, pos ) )) { 
+            pos += lenTagInsideSynset;
+            
+            // If term found in example str, Add to retSentences;
+            if( WN.searchStr( term, tagInsideSynsetEnd, pos ) ) {
+                WN.readStr( buff,
+                            WN.searchStr( tagInsideSynsetEnd, pos ) - pos, // length;
+                            pos
+                          );
+                
+                int numExamplesNotMatching = 0;
+                for( int i =0, LENGTH, len; numExamplesNotMatching < NUM_EXAMPLES_ALREADY_ADDED_LEN; numExamplesNotMatching++ ) {
+                    
+                    LENGTH = 0;
+                    while( buff[ LENGTH ] ) { LENGTH++; }
+                    
+                    if( LENGTH ==  LENS_ALREADY_ADDED[ i ] ) {
+    
+                        // Possible match, test; 
+                        for( len=0; len < LENGTH; len++) { 
+                            if( buff[ len ] != alreadyAdded[i][len] ) { 
+                                break; 
+                            }
+                        }
+                        
+                        // Break if match found ( DO NOT ADD buff[] )
+                        if( len == LENGTH ) { break; }
+                    }  
+                }
+                
+                if( numExamplesNotMatching == NUM_EXAMPLES_ALREADY_ADDED_LEN ) { 
+                    
+                    // No match found, add here; 
+                    retPos[ retPosIndex   ] = synid_pos;
+                    retPos[ retPosIndex+1 ] = pos; 
+                    retPos[ retPosIndex+2 ] = indexWithinSynsetTag;
+                    retPosIndex += 3; 
+                    
+                    numSentenceCollected++; 
+                }
+                
+                if( numSentenceCollected == nsize || 
+                    numSentenceCollected == RETPOS_SIZE_ALLOCATED ) { break; }
+                    
+                indexWithinSynsetTag++; 
+            }
+        }
+
+        if( numSentenceCollected == nsize || 
+            numSentenceCollected == RETPOS_SIZE_ALLOCATED ) { break; }
+
+    }
+    retPos[ retPosIndex   ] = 0;
+    retPos[ retPosIndex+1 ] = 0;    
+    retPos[ retPosIndex+2 ] = 0;    
+    
+    return ;
+}
+
+
+/*
+   Example Setences containing Term:
+               const unsigned char *const EXAMPLE_STR = (unsigned char *)"<Statement example=\"";    
+               const unsigned char *const exampleEnd = (unsigned char *)"\"";
+   Gloss Sentences containing Term:
+               const unsigned char *const exampleSentenceStr = (unsigned char *)"<Definition gloss=\"";
+               const unsigned char *const exampleEnd = (unsigned char *)"\"";
+
+   can also grab these w/caareful 'term'(arg2) manipulation.
+              <SynsetRelations>
+                 <SynsetRelation targets='jpn-1.1-01785180-a' relType='sim'/>
+              </SynsetRelations>
+   
+*/
+
+// Helper function, returns sentences containing term;
+// Arg1: this
+// Arg2: term to use when searching for sentences
+// Arg3: tag to find match ( skips past this string )
+// Arg4: ending string (after Arg3);
+// Arg5: number of sentences to grab ( if avalaible )
+// Arg6: example sentences already added. 
+std::vector<ustring> getStringsMatchingTermInsideTag(const Wordnet_DictClass &WN,
+                                         const unsigned char *const term,
+                                         const unsigned char *const begTagStr,
+                                         const unsigned char *const endBegTagStr,
+                                         const int &n,
+                                         std::vector<ustring> examplesAlreadyAdded )
+{
+    const int examplesAlreadyAdded_MAX_SIZE = 254;
+    std::vector<ustring> retSentences;
+    if( !term || n <= 0 ) { return retSentences; }
+    
+    const int synID_Example_Position_Pairs_SIZE = examplesAlreadyAdded_MAX_SIZE;
+    std::size_t synID_Example_Position_Pairs[ examplesAlreadyAdded_MAX_SIZE + 1 ];
+
+    getExampleSentences_getPositions( synID_Example_Position_Pairs,
+                                      WN,
+                                      term,
+                                      begTagStr,
+                                      endBegTagStr,
+                                      n,
+                                      examplesAlreadyAdded
+                                    );  
+
+    unsigned char buff[255]; // Possible buffer overrun. Sentence MUST NOT exceed 255; 
+    std::size_t pos = 1;
+    int i =0;
+
+    while( synID_Example_Position_Pairs[ i ] ) 
+    { 
+        WN.readStr( buff,
+                    WN.searchStr( endBegTagStr, synID_Example_Position_Pairs[ i+1 ] ) 
+                       - synID_Example_Position_Pairs[ i+1 ], // length;
+                    synID_Example_Position_Pairs[ i+1 ]
+                  );
+        retSentences.push_back( buff );
+        
+        i+=3;
+    }
+    
+    return retSentences;
+}
+
+
+
 // Helper function, returns sentences containing term;
 // Arg1: this
 // Arg2: term to use when searching for sentences
 // Arg3: number of sentences to grab ( if avalaible )
+// Arg4: example sentences already added. 
+// Arg5: 3 data sets possible to grab 
+//       - Synid(NUM ONLY)
+//       - gloss setnences
+//       - ?
 std::vector<ustring> getExampleSentences(const Wordnet_DictClass &WN,
                                          const unsigned char *const term,
-                                         const  int n)
+                                         const int &n,
+                                         std::vector<ustring> examplesAlreadyAdded,
+                                         const int GRAB_DATASET_NUMBER = 1)
 {
+    const int examplesAlreadyAdded_MAX_SIZE = 254;
     std::vector<ustring> retSentences;
     if( !term || n <= 0 ) { return retSentences; }
-
-
-    int numSentenceCollected = 0;
-    const unsigned char *const exampleSentenceStr = (unsigned char *)"<Statement example=\"";
-    const int lenExampleSentenceStr = strlen( (char *)exampleSentenceStr );
-    const unsigned char *const exampleEnd = (unsigned char *)"\"";
     
-    unsigned char buff[320];
+    const int synID_Example_Position_Pairs_SIZE = examplesAlreadyAdded_MAX_SIZE;
+    std::size_t synID_Example_Position_Pairs[ examplesAlreadyAdded_MAX_SIZE + 1 ];
+    const unsigned char *const EXAMPLE_STR = (unsigned char *)"<Statement example=\"";    
+    const unsigned char *const exampleEnd = (unsigned char *)"\"";
+
+    getExampleSentences_getPositions( synID_Example_Position_Pairs,
+                                      WN,
+                                      term,
+                                      EXAMPLE_STR,
+                                      exampleEnd,
+                                      n,
+                                      examplesAlreadyAdded
+                                    );  
+
+    unsigned char buff[255]; // Possible buffer overrun. Sentence MUST NOT exceed 255; 
     std::size_t pos = 1;
-    while( (pos = WN.searchStr( exampleSentenceStr, pos ) )) { 
-        pos += lenExampleSentenceStr;
-        
-        // If term found in example str, Add to retSentences;
-        if( WN.searchStr( term, exampleEnd, pos ) ) {
+    int i =0, k;
+    while( synID_Example_Position_Pairs[ i ] ) 
+    { 
+        if( GRAB_DATASET_NUMBER == 1 ) { // i+1  
             WN.readStr( buff,
-                        WN.searchStr( exampleEnd, pos ) - pos, // length;
-                        pos
+                        WN.searchStr( exampleEnd, synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ] ) 
+                           - synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ], // length;
+                        synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ]
                       );
-            
-            retSentences.push_back( buff );
-            
-            numSentenceCollected++; 
-            
-            if( numSentenceCollected == n ) { break; }
+        } 
+        else if( GRAB_DATASET_NUMBER == 0 ) 
+            WN.readStr( buff, 
+                        8,
+                        synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ]
+                      );  
+        else if( GRAB_DATASET_NUMBER == 2 ) 
+        {
+           std::size_t number = synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ];
+           // CPY + PASTE; 
+                
+                std::size_t len = 0;
+                std::size_t mult = 1;
+                while( mult ==1 || mult <= number ) { mult *= 10; len++; }
+                if( len == 0 ) { 
+                    buff[0]=0x30; buff[1]='\0';  
+                }
+                else 
+                {
+                    mult /= 10;
+                    
+                    std::size_t copyI = synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ];
+                    for(unsigned int c=0, num=0; c < len-1; c++, mult /= 10) {
+                        num = (copyI / mult );
+                        copyI -=  (num * mult );
+                        buff[c] = num + 0x30;
+                    }
+                    buff[len-1] = (0x30+(number%10));
+                    buff[len ] = '\0';
+                }                         
         }
+        retSentences.push_back( buff );
+        
+        i+=3;
     }
     
     return retSentences;
 }
 
-// Helper function, returns glosses containing term;
+
+// Helper function, returns sentences containing term;
 // Arg1: this
-// Arg2: term to use when searching for in glosses
+// Arg2: term to use when searching for sentences
 // Arg3: number of sentences to grab ( if avalaible )
+// Arg4: example sentences already added. 
+// Arg5: 3 data sets possible to grab 
+//       - Synid(NUM ONLY)
+//       - gloss setnences
+//       - ?
 std::vector<ustring> getGlossSentences(const Wordnet_DictClass &WN,
                                          const unsigned char *const term,
-                                         const  int n)
+                                         const int &n,
+                                         std::vector<ustring> examplesAlreadyAdded,
+                                         const int GRAB_DATASET_NUMBER = 1)
 {
+    const int examplesAlreadyAdded_MAX_SIZE = 254;
     std::vector<ustring> retSentences;
     if( !term || n <= 0 ) { return retSentences; }
-
-
-    int numSentenceCollected = 0;
-    const unsigned char *const exampleSentenceStr = (unsigned char *)"<Definition gloss=\"";
-    const int lenExampleSentenceStr = strlen( (char *)exampleSentenceStr );
-    const unsigned char *const exampleEnd = (unsigned char *)"\"";
     
-    unsigned char buff[320];
+    const int synID_Example_Position_Pairs_SIZE = examplesAlreadyAdded_MAX_SIZE;
+    std::size_t synID_Example_Position_Pairs[ examplesAlreadyAdded_MAX_SIZE + 1 ];
+    const unsigned char *const definitionStr = (unsigned char *)"<Definition gloss=\"";
+    const unsigned char *const definitionEnd = (unsigned char *)"\"";
+
+    getExampleSentences_getPositions( synID_Example_Position_Pairs,
+                                      WN,
+                                      term,
+                                      definitionStr,
+                                      definitionEnd,
+                                      n,
+                                      examplesAlreadyAdded
+                                    );  
+
+    unsigned char buff[255]; // Possible buffer overrun. Sentence MUST NOT exceed 255; 
     std::size_t pos = 1;
-    while( (pos = WN.searchStr( exampleSentenceStr, pos ) )) { 
-        pos += lenExampleSentenceStr;
-        
-        // If term found in example str, Add to retSentences;
-        if( WN.searchStr( term, exampleEnd, pos ) ) {
+    int i =0, k=0;
+    while( synID_Example_Position_Pairs[ i ] ) 
+    { 
+        if( GRAB_DATASET_NUMBER == 1 ) { // i+1  
             WN.readStr( buff,
-                        WN.searchStr( exampleEnd, pos ) - pos, // length;
-                        pos
+                        WN.searchStr( definitionEnd, synID_Example_Position_Pairs[ i+1 ] ) 
+                           - synID_Example_Position_Pairs[ i+1 ], // length;
+                        synID_Example_Position_Pairs[ i+1 ]
                       );
-            
-            retSentences.push_back( buff );
-            
-            numSentenceCollected++; 
-            
-            if( numSentenceCollected == n ) { break; }
+        } 
+        else if( GRAB_DATASET_NUMBER == 0 ) 
+            WN.readStr( buff, 
+                        8,
+                        synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ]
+                      );  
+        else if( GRAB_DATASET_NUMBER == 2 ) 
+        {
+           std::size_t number = synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ];
+           // CPY + PASTE; 
+                
+                std::size_t len = 0;
+                std::size_t mult = 1;
+                while( mult ==1 || mult <= number ) { mult *= 10; len++; }
+                if( len == 0 ) { 
+                    buff[0]=0x30; buff[1]='\0';  
+                }
+                else 
+                {
+                    mult /= 10;
+                    
+                    std::size_t copyI = synID_Example_Position_Pairs[ i+GRAB_DATASET_NUMBER ];
+                    for(unsigned int c=0, num=0; c < len-1; c++, mult /= 10) {
+                        num = (copyI / mult );
+                        copyI -=  (num * mult );
+                        buff[c] = num + 0x30;
+                    }
+                    buff[len-1] = (0x30+(number%10));
+                    buff[len ] = '\0';
+                }                         
         }
+        retSentences.push_back( buff );
+        
+        i+=3;
     }
     
     return retSentences;
 }
+
 
 } // NAMESPACE; 
 
