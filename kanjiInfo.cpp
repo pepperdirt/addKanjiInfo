@@ -186,7 +186,7 @@ int main(const int argc, const char **const argv) {
     // Surrounds term to define with this Delim,i.e., asdfsdf GLOSS_DELIM GLOSS-TERM GLOSS_DELIM sdfsdf
     const unsigned char *GLOSS_DELIM = (unsigned char *)"\0"; 
     unsigned int KHelpFLAGS = 0x00; // BIT 0: F, BIT 1: O, BIT 2: K, BUT 3: S;
-    const char HEADER[4]= { 0xEF, 0xBB, 0xBF, 0x00 };
+    const unsigned char HEADER[4]= { 0xEF, 0xBB, 0xBF, 0x00 };
     const unsigned char *YOMI_DELIM = (unsigned char *)"\xE3\x83\xBB";
     unsigned int errorNo = 0;
     int NUMBER_OF_SENTENCES_TO_ADD = 3;
