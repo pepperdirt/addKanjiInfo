@@ -23,7 +23,9 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2018/01/07  - Version 0.1.3c
+	-Last Updated:2018/01/07  - Version 0.1.3d
+	                            Add switch --input-string
+                              - Version 0.1.3c
 	                            + added --tell-me-delims switch
                               - Version 0.1.3b
 	                            + added missing </h1> tag
@@ -74,8 +76,10 @@
          Y_SYNSETS=16,
          R_RELATION_SENTENCES=17,
              TELL_ME_SWITCHES = 18,
-         H_help=19,
-         V_version=20,
+             INPUT_STRING_SWITCHES = 19,
+             
+         H_help=20,
+         V_version=21,
          END_TERMINATOR=0
     };
     enum K_HELP_FLAGS { F_FLAG = 0x01, O_FLAG = 0x02, K_FLAG = 0x04, S_FLAG = 0x08, T_FLAG = 0x10, Y_FLAG=0x20 };
@@ -237,8 +241,9 @@ int main(const int argc, const char **const argv) {
                             const unsigned char *SIMILAR_GLOSS_HEADER =       (unsigned char *)"<label class=\"similargloss\">";
                             const unsigned char *END_SIMILAR_GLOSS    =       (unsigned char *)"</label>";
 
+
     // USER INPUT
-    if(switchIndexes[ I_IN_FILE ]  ) {
+    if(switchIndexes[ TELL_ME_SWITCHES ]  ) {
         inputFile = argv[switchIndexes[ TELL_ME_SWITCHES ]];
         if( inputFile ) { 
             ParseFileClass cvsFile( inputFile );
@@ -251,15 +256,10 @@ int main(const int argc, const char **const argv) {
             
             return 0;
         }
-    }
+    }   
    
     if(switchIndexes[ I_IN_FILE ]  ) 
         inputFile = argv[switchIndexes[ I_IN_FILE ]];
-    else
-    { 
-        std::cout << "Error. Requries an input file( -I )\n";
-        return 1; // Need input file to continue;
-    }
     if(switchIndexes[ D_Delim ]  ) 
         delim = (const unsigned char *)argv[switchIndexes[ D_Delim ]];
     const int DELIM_SIZE = strlen( (const char *)delim );
@@ -286,6 +286,18 @@ int main(const int argc, const char **const argv) {
                                             0
                                          )
                              );
+    if(switchIndexes[ N_NUMBER_OF_FIELDS ]  ) 
+        numberOfFields = 
+                     strToNum(
+                                argv[switchIndexes[ N_NUMBER_OF_FIELDS ]],
+                                0,
+                                strNumlen( 
+                                            argv[switchIndexes[ N_NUMBER_OF_FIELDS ]],
+                                            0
+                                         )
+                             );
+
+
     if(switchIndexes[ F_FURIGANIZE_BEFORE_ADDING_EXTRA_INFO ]  ) 
         doFuriganize = 
                      strToNum(
@@ -320,7 +332,7 @@ int main(const int argc, const char **const argv) {
         if( i != argc ) {      
  	    if( switchIndexes[ G_GLOSS ] != argc ) 
      		GLOSS_DELIM = (unsigned char *)argv[switchIndexes[ G_GLOSS ]];
-        }
+        }        
     }
 
     if(switchIndexes[ Y_SYNSETS ]  ) 
@@ -340,6 +352,43 @@ int main(const int argc, const char **const argv) {
         WORDNET = argv[switchIndexes[ W_WORDNET ]];
     if(switchIndexes[ X_KANJIDICT2 ]  ) 
         KANJIDICT2 = argv[switchIndexes[ X_KANJIDICT2 ]];
+
+
+    // Can I have this insid the if statement??
+    const char *const tmpFileName = "tmp_file_input_string"; // Need to find writable directories for win/linux. 
+    if(switchIndexes[ INPUT_STRING_SWITCHES ]  ) {
+        if( !argv[switchIndexes[ INPUT_STRING_SWITCHES ]] ) { 
+            std::cout << "No Input STRING!\n";
+            return 1; }
+        // --input-string STRING     
+        inputFile = tmpFileName;
+        std::ofstream out_f; out_f.open( inputFile, std::ios::binary );
+        out_f.write( argv[ INPUT_STRING_SWITCHES ], strlen( argv[ INPUT_STRING_SWITCHES ] ) );
+        out_f.write( ENTER, 1 );
+        out_f.close();
+        
+        
+        if( inputFile ) { 
+            std::ifstream ii; ii.open( inputFile ); 
+            
+            if( !ii ) { 
+                std::cout << "Error. Could not write to temp file!\n"; 
+                
+                return 1<<5;
+            }
+            ii.close();
+        }
+            
+        numberOfFields = 1; // N_NUMBER_OF_FIELDS
+        printToField   = 1; // P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P
+        switchIndexes[ I_IN_FILE ]  = 1;
+        
+    }
+
+    if( !switchIndexes[ I_IN_FILE ]  ) {
+        std::cout << "Error. Requries an input file( -I )\n";
+        return 1; // Need input file to continue;
+    }
     
 
     kanjiDB::Wordnet_DictClass Wordnet( WORDNET,kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );  
@@ -1041,14 +1090,18 @@ void getSwitchIndex(unsigned int *const ret, const int argc, const char **const 
                     break;
 
                case '-':// --?????
-                   switch( toupper(*(argv[i]+2) ) )
+                   switch( toupper(*(argv[i]+2) ) ) 
                    {
                       // --tell-me-delims FILE\n"
                        case 'T': // Dont even worry about matching the rest. 
                             ret[ I_IN_FILE ] = i+1;
                             ret[ TELL_ME_SWITCHES ] = i+1; 
                        
-                            break;                           
+                            break; 
+                       // --input-string STRING     
+                       case 'I':
+                            ret[ INPUT_STRING_SWITCHES ] = i+1;
+                            ret[ I_IN_FILE ] = i+1; 
                    default:
                    break;                                                         
                    }     
@@ -1181,6 +1234,9 @@ std::cout << "Insert Kanji Info from file in batch.\n"
 		<< "\t  Searches FILE and tries to tell you what switches to use\n"
 		<< "\t  (concerning the switches -D and -N )\n"
 		<< "  -I\tInput (.cvs) File to read and add kanji information to.\n"
+		<< "  --input-string STRING\n"
+		<< "\t  Use this switch to get information from a single string\n"
+        << "\t  if spaces are present, encase the STRING in quotes \"\".\n" 
 		<< "  -D\tSet Deliminator to use in read in (.cvs) file ( FLAG: -I )\n"
         << "\t Default deliminator is New line, every line is a new field. \n"
         << "\t If Delim ( -D ) is supplied, there MUST be (-N ##) number\n"
