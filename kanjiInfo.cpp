@@ -23,7 +23,9 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-	-Last Updated:2018/01/04  - Version 0.1.3b
+	-Last Updated:2018/01/07  - Version 0.1.3c
+	                            + added --tell-me-delims switch
+                              - Version 0.1.3b
 	                            + added missing </h1> tag
                               - Version 0.1.3a
                                 + seems to work 
@@ -53,7 +55,7 @@
    
 */
     enum switch_names { FILE_NAME=0, VERSION_MAJOR=0, VERSION_MINOR=1,VERSION_=3 };
-    const char *const versionAlpha = "b";
+    const char *const versionAlpha = "c";
     enum COMMAND_SWITCHES { 
          I_IN_FILE=1, D_Delim=2, 
          S_SET_FILEDS_TO_ADD_EXTRACT_DATA_FROM_FOR_THEN_INSERTING_INTO_ANSWER_CARDS=3,
@@ -71,9 +73,9 @@
          G_GLOSS=15,
          Y_SYNSETS=16,
          R_RELATION_SENTENCES=17,
-
-         H_help=18,
-         V_version=19,
+             TELL_ME_SWITCHES = 18,
+         H_help=19,
+         V_version=20,
          END_TERMINATOR=0
     };
     enum K_HELP_FLAGS { F_FLAG = 0x01, O_FLAG = 0x02, K_FLAG = 0x04, S_FLAG = 0x08, T_FLAG = 0x10, Y_FLAG=0x20 };
@@ -114,6 +116,27 @@ std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
                                          const unsigned char * term,
                                          const int &numSentence
                                         );
+
+// Functions for GUESSING command-line switches to use (switch --guessSwitches
+std::size_t UNSAFE_isMatch( const unsigned char *needle,
+		     const unsigned char *HAY,
+		     const std::size_t &PosInHay = 0,
+		     const unsigned int needleLen = 0);
+
+int addEndingDelimThatParseFileClassOmits( unsigned char *buff,
+                                           const int SIZE = 0 );
+void countDeliminatorsPerLine( ParseFileClass &cvsFile,
+                               unsigned char **&ppDelimStrs, 
+                               unsigned int retINTVAL_COUNTER[],
+                               std::size_t LINES_TO_SEARCH  = 0 );
+unsigned char ** returnPossibleDelimsInLine(const unsigned char *const buff	);
+void removeInvalidatedDeliminators( ParseFileClass &cvsFile,
+                                    unsigned char **& ppDelimStrs,
+                                    const int NUM_LINES_TO_CHECK = 60 );
+    
+
+void guessDeliminators(ParseFileClass &cvsFile  );
+
 int main(const int argc, const char **const argv) {
 
     if( argc == 1 ) { help(); return 0; }
@@ -215,6 +238,21 @@ int main(const int argc, const char **const argv) {
                             const unsigned char *END_SIMILAR_GLOSS    =       (unsigned char *)"</label>";
 
     // USER INPUT
+    if(switchIndexes[ I_IN_FILE ]  ) {
+        inputFile = argv[switchIndexes[ TELL_ME_SWITCHES ]];
+        if( inputFile ) { 
+            ParseFileClass cvsFile( inputFile );
+            if( fieldsToSearch.size() == 0 ) { 
+                std::cout << "Error. Input file("<<inputFile<<") not found!\n"; 
+                
+                return 1<<5;
+            }
+            guessDeliminators(cvsFile );
+            
+            return 0;
+        }
+    }
+   
     if(switchIndexes[ I_IN_FILE ]  ) 
         inputFile = argv[switchIndexes[ I_IN_FILE ]];
     else
@@ -406,8 +444,7 @@ int main(const int argc, const char **const argv) {
     std::size_t SAVED_POS = cvsFile.getPositionPointer();
     const std::size_t FIELD_LEN_MAX = 1200; //  largestDelimField( cvsFile, delim );
     cvsFile.setGetPointer( SAVED_POS );
-    
-    
+
     unsigned char buff[FIELD_LEN_MAX+1];
 
     // No header to skip, Set GetPointer back to 0;
@@ -1003,6 +1040,18 @@ void getSwitchIndex(unsigned int *const ret, const int argc, const char **const 
                     ret[ V_version ] = i+1; 
                     break;
 
+               case '-':// --?????
+                   switch( toupper(*(argv[i]+2) ) )
+                   {
+                      // --tell-me-delims FILE\n"
+                       case 'T': // Dont even worry about matching the rest. 
+                            ret[ I_IN_FILE ] = i+1;
+                            ret[ TELL_ME_SWITCHES ] = i+1; 
+                       
+                            break;                           
+                   default:
+                   break;                                                         
+                   }     
 
                default:
                break;
@@ -1128,13 +1177,16 @@ std::cout << "Insert Kanji Info from file in batch.\n"
          << "supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
 
 		<< "\n"
+		<< "  --tell-me-delims FILE\n"
+		<< "\t  Searches FILE and tries to tell you what switches to use\n"
+		<< "\t  (concerning the switches -D and -N )\n"
 		<< "  -I\tInput (.cvs) File to read and add kanji information to.\n"
 		<< "  -D\tSet Deliminator to use in read in (.cvs) file ( FLAG: -I )\n"
         << "\t Default deliminator is New line, every line is a new field. \n"
-        << "  -C\tConvert old Delim( -D ) to new Delim ( -C ) in stdout\n"
         << "\t If Delim ( -D ) is supplied, there MUST be (-N ##) number\n"
-        << "\tof fields per line\n"
-		<< "  -N\tNumber of deliminators(fields) per line. If default deliminator.\n"
+        << "\t of fields per line\n"
+        << "  -C\tConvert old Delim( -D ) to new Delim ( -C ) in stdout\n"
+		<< "  -N\tNumber of deliminators(fields) per line(entry). If default deliminator.\n"
 		<< "\t (newline) is used, -N defaults to 3 newlines(fields) per entry\n"
 		<< "  -S\tSets the field(s) to add Kanji info and insert into field (-P )\n"
 		<< "\t Default: Add information based on field 1.\n"
@@ -1579,4 +1631,463 @@ std::vector<ustring> getExampleSentences(kanjiDB::Wordnet_DictClass &Wordnet,
     }
         
     return exmapleSentences;
+}
+
+// If don't supply size, this won't work correctly. Function is compensating
+// for ParseFileClass's defficiency( off-by-one if use returnPos as size of buff returned )
+// Takes size that is given from ParseFileClass
+// Arg1: buff returned from ParseFileClass::getLine(std::size_t ParseFileClass::getLine(unsigned char retStr[], const std::size_t len,const unsigned char *endString = (const unsigned char 
+// Arg2: size of buff(size == RETURNED_POS_FROM_getLine - ORIGINAL_POS_BEFORE_getLine )
+int addEndingDelimThatParseFileClassOmits( unsigned char *buff,
+					    const int SIZE)
+{
+    int size = SIZE;
+    if( size == 0 ) { while( buff[ size ] ) { size++; } }
+
+    if( buff[ size - 1 ] == '\0' ) { 
+	// Add ending delim ( 0x0A )
+	buff[ size - 1 ] = 0x0A;
+	buff[ size ] = '\0';
+
+	return 0;
+    }
+    
+    return 1;
+}
+
+void countDeliminatorsPerLine( ParseFileClass &cvsFile,
+			  unsigned char **&ppDelimStrs, 
+			  unsigned int retINTVAL_COUNTER[],
+              std::size_t LINES_TO_SEARCH )    
+{
+    if( !ppDelimStrs || !ppDelimStrs[0][0] ) { return ; }
+    std::size_t SAVED_POS = cvsFile.getPositionPointer();
+    const unsigned char *const ENTER = (unsigned char *)"\x0A";
+
+    std::size_t pos = 0;
+    unsigned int len = 0; while( ppDelimStrs[ pos ] ) { pos++; }
+    const unsigned int ppSIZE = pos; 
+
+    const int LEN_MAX = 1023;
+    unsigned char buff[ LEN_MAX+1 ];
+    
+    // Do first iteration to fill retINTVAL_COUNTER; 
+    pos = cvsFile.getLine(buff, LEN_MAX, ENTER);
+    std::size_t lastPos = pos - SAVED_POS; 
+
+    addEndingDelimThatParseFileClassOmits( buff, lastPos );  // pos == size(as ParseFileClass returns(not always == to sizeOfBuff :'< 
+	for(unsigned int a = 0; a < ppSIZE; a++) { 
+        retINTVAL_COUNTER[ a ] = 0;
+        // Search for delim strs ( and keep searching until all found;
+	    len = 0; 
+        while( (len = UNSAFE_isMatch( ppDelimStrs[ a ], buff, len )) ) {
+            retINTVAL_COUNTER[ a ]++;
+        } // len == posIn *buff;
+     }
+    
+    std::size_t lineNo = 0;
+    lastPos = pos;
+    while( (pos = cvsFile.getLine(buff, LEN_MAX, ENTER)) )
+    {
+        len = pos - lastPos;
+        lastPos = pos; 
+        addEndingDelimThatParseFileClassOmits( buff, len ); // pos == size(as ParseFileClass returns(not always == to sizeOfBuff :'< 
+        
+    	for(unsigned int a = 0; a < ppSIZE; a++) { 
+            len = 0;
+            int match = 0;
+            
+            // If delims present( weren't flagged for removal
+            // Verify delim.
+            if( retINTVAL_COUNTER[ a ] ) { 
+                // Search for delim strs ( and keep searching until all found;
+        	    while( (len = UNSAFE_isMatch( ppDelimStrs[ a ], buff, len )) ) {
+                    match++;
+                } // len == posIn *buff;
+        	    
+        	    // Flag for removal if delim doesn't == first number of delims. 
+        	    if( match != retINTVAL_COUNTER[ a ] ) { 
+                    retINTVAL_COUNTER[ a ] = 0;
+                }
+            }
+    	}
+    
+    	lineNo++;
+    	if( lineNo == LINES_TO_SEARCH ) { break; }
+    }
+
+   // delete invalidated delims. 
+   int newLogicalSize = 0;
+    for(int a = 0; a < ppSIZE; a++) { 
+    	// Flagged to delete. 
+    	if( !retINTVAL_COUNTER[ a ] ) {
+    	    delete ppDelimStrs[ a ];
+    	}
+    	else {
+    	    // Move delim to keep to index [ newLogicalSize ];
+    	    if( newLogicalSize != a ) { 
+    		    ppDelimStrs[ newLogicalSize ] = ppDelimStrs[ a ];
+                retINTVAL_COUNTER[ newLogicalSize ] = retINTVAL_COUNTER[ a ];
+            }
+    
+    	    newLogicalSize++;
+    	}
+    }
+    ppDelimStrs[ newLogicalSize ] = 0;
+    retINTVAL_COUNTER[ newLogicalSize ] = 0;
+
+   // Arrange deliminators from largest to smallest(occurrances.  
+    for(int a = 0, largest, index; a < newLogicalSize; a++) { 
+    	// Flagged to delete. 
+        largest = 0;
+        index = 0;
+        
+        for(int k = a; k < newLogicalSize; k++) { 
+            if( retINTVAL_COUNTER[ k ] > largest ) {
+                // Also make sure any Pointers GTR THAN 0x7F are prioritized
+                // LOWEST. (At end of list )
+                if( ppDelimStrs[ index ][0] < 0x80 ) { 
+                    largest = retINTVAL_COUNTER[ k ];
+                    index   = k; 
+                }
+                else {
+                    if( (retINTVAL_COUNTER[ k ]>>1) >= largest ) {  // Allows even if == 0. 
+                        largest = retINTVAL_COUNTER[ k ]>>1; // divide by 2(maybe this will reduce enough to place at FINAL index(End of List)
+                        index   = k; 
+                    }
+                }
+            }
+        }
+        
+        // Swap 
+        unsigned char *pSwap = ppDelimStrs[ a ];
+        unsigned int iSwap   = retINTVAL_COUNTER[ a ];
+        
+        ppDelimStrs[ a ]       = ppDelimStrs[ index ];
+        retINTVAL_COUNTER[ a ] = retINTVAL_COUNTER[ index ];
+        
+        ppDelimStrs[ index ]      = pSwap;
+        retINTVAL_COUNTER[ index] = iSwap; 
+    }
+    ppDelimStrs[ newLogicalSize ] = 0;
+    retINTVAL_COUNTER[ newLogicalSize ] = 0;
+
+
+    cvsFile.setGetPointer( SAVED_POS );        
+    return ;
+}
+
+
+// Logic to guess deliminators:
+//	- search first line. Take EVERY character and 
+//	  search next lines for matches ( next... 40 lines? )
+//	  Find the deliminator that occurrs MOST (and MUST occurr at every line)
+//	  Then, after deliminator is found, find how many per line; 
+//	  + If NO suitable deliminator is found, use ENTER_KEY, but ask user
+//	    for num lines to delim by...? 
+void guessDeliminators(ParseFileClass &cvsFile )
+{
+    std::size_t pos;
+    std::size_t lastPos = 0;
+    unsigned int lineNo = 0;
+    const int LEN_MAX = 1023;
+    unsigned char buff[ LEN_MAX+1 ];
+    int len = 0;
+    const unsigned char *const ENTER = (unsigned char *)"\x0A";
+
+    // the stored chars(found chars) in a given line. 
+    unsigned int INTVAL_STORED[256]; // 0 - 255 value( delim char );
+    pos = cvsFile.getLine(buff, LEN_MAX, ENTER);
+
+    // getLine doesn't grab ending deliminator;  Version: 2.0.1
+    // Check for EOF at [ pos - (DELIM_SIZE) ];
+    // Add for check below; 
+    addEndingDelimThatParseFileClassOmits( buff, pos ); // pos == size(as ParseFileClass returns(not always == to sizeOfBuff :'< 
+
+    unsigned char **ppDelimStrs = returnPossibleDelimsInLine( buff );
+
+    len = 0; while( ppDelimStrs[ len ] ) { len++; }
+    const int DELIM_SIZE = len; 
+
+    len = 0; while( buff[ len ] ) { len++; }
+    if( len == cvsFile.getFileLength() ) { 
+        // What do do here...? 
+        std::cout << "len == "<<len<<"; ";
+    }
+
+    // Read first 60 lines(up to), only keep delims that are in each line
+    removeInvalidatedDeliminators( cvsFile, ppDelimStrs, 60 );
+
+    // Count number of deliminators in 30 lines. 
+    countDeliminatorsPerLine( cvsFile, ppDelimStrs, INTVAL_STORED, 30 );
+
+    // Return the first two delims. (one for delims in a line, 2nd for end of entry delim )
+    // End of entry is PROBABLY /0A (ENTER);
+    int logSize = 0;
+    for(int a = 0; ppDelimStrs[ a ]; a++) { 
+//std::cout << "\n[ "<<a<<" ]\n";
+        if( a == 0 ) { 
+//            unsigned int numFields = 0xFF&ppDelimStrs[a][ strlen( (char *)ppDelimStrs[a]) - 1 ];
+            unsigned int numFields = INTVAL_STORED[ a ];
+            std::cout << "File delimiterizes "<< numFields << " field(s) by the character(s): ";
+            
+        }
+        else if( a == 1 ) { 
+            std::cout << "End of entry character(s): ";
+        
+        }
+        
+        if( a == 0 || a == 1 ) {
+            if(      ppDelimStrs[ a ][0] == 0x0A 
+                  || ppDelimStrs[ a ][0] == 0x0D ) {
+                std::cout << "ENTER_KEY" << std::endl;
+            }
+            else if( ppDelimStrs[ a ][0] == 0x20  ) { 
+                std::cout << "SPACE_KEY" << std::endl;
+            }
+            else {
+                unsigned char printStr[80];
+                strcpy( (char *)ppDelimStrs[a], (char *)printStr ); // !! **CHECK strcpy FOR CORRECT USAGE. 
+                std::cout << printStr << std::endl;
+            }
+        }
+    }
+
+
+    if( ppDelimStrs[0]  ) { //&& ppDelimStrs[1] ) {
+            std::cout << "\nTry this command ( + all other options you want ):"<< std::endl;
+            
+            int a = 0;
+            if( a == 0 ) { 
+                std::cout << "-D ";
+                if(      ppDelimStrs[ 0 ][0] == 0x0A 
+                      || ppDelimStrs[ 0 ][0] == 0x0D ) {
+                    std::cout << "x0A "; // Don't need to do anything, default to enter; 
+                }
+                else if( ppDelimStrs[ 0 ][0] == 0x20  ) { 
+                    std::cout << "x20 ";
+                }
+                else {
+                    std::cout << ppDelimStrs[0];
+                }
+
+                std::cout << "-N ";                
+                int numFields = INTVAL_STORED[ a ];
+                if( numFields > 1 ) {
+                    std::cout << numFields; 
+                } else { 
+                    std::cout << "(NUMBER_OF_FIELDS_PER_ENTRY__NO_PARENTHESES)" ;
+                }                             
+                
+                std::cout << std::endl;
+            }
+        
+    }
+/*    else { 
+        if( ppDelimStrs[0] ) { 
+            std::cout << "Only One deliminator found. Cannot determine how to parse file!\n";
+            
+            std::cout << "Try this command ( + all other options you want ):"<< std::endl
+                      << "-D ";
+            if(      ppDelimStrs[ 0 ][0] == 0x0A 
+                  || ppDelimStrs[ 0 ][0] == 0x0D ) {
+                std::cout << "x0A "; // Don't need to do anything, default to enter; 
+            }
+            else if( ppDelimStrs[ 0 ][0] == 0x20  ) { 
+                std::cout << "x20 ";
+            }
+            else {
+                std::cout << ppDelimStrs[0];
+            }
+            
+            int numFields = INTVAL_STORED[ a ];
+            if( numFields > 1 ) {
+                std::cout << numFields; 
+            } else { 
+                std::cout << "(NUMBER_OF_FIELDS_PER_ENTRY__NO_PARENTHESES)" << std::endl;
+            }            
+        }
+    }
+*/
+
+
+    for(int a = 0; ppDelimStrs[ a ]; a++) { 
+        delete ppDelimStrs[ a ];
+    }
+    
+    if( ppDelimStrs ) { delete [] ppDelimStrs; }
+    
+}
+
+// 
+
+// better ?encapsulation(can't think of word), gives ability 
+// to change how delims are selected, without changing calling func();
+unsigned char ** returnPossibleDelimsInLine(const unsigned char *const buff	)
+{
+    unsigned char **retPtr;
+    // Simply return EVERY character recieved. 
+    // May change later to include multicharacter deliminators.
+    int len = 0; while( buff[ len ] ) { len++; }
+    
+    if( len > 255 ) { retPtr = new unsigned char*[ 255+1 ]; }
+    else 	    { retPtr = new unsigned char*[ len+1 ]; }
+    int PTR_LOGICAL_SIZE = 0;
+
+    // Do check for multi-char ENTER;
+    const unsigned char *const WINDOWS_HARD_ENTER = (unsigned char *)"\x0D\x0A";
+    
+    for(int i = 0, a; i < len; i++) { 
+
+    	// Search through retPtr for buff[i]; 
+    	for(a = 0; a < PTR_LOGICAL_SIZE; a++) { 
+	        if( retPtr[ a ][ 0 ] == buff[ i ] )
+                break ;
+    	}
+    
+    	// buff[i] NOT found. Add here. 
+    	if( a == PTR_LOGICAL_SIZE ) { 
+    	    if( buff[ i ] == 0x0D ) { 
+    		// With this logic, possible to add /0xA as another delim. 
+    		if( buff[ i+1 ] == 0x0A ) {
+    		    retPtr[ PTR_LOGICAL_SIZE ] = new unsigned char[ 3 ];
+    		    retPtr[ PTR_LOGICAL_SIZE ][0] = 0x0D;
+    		    retPtr[ PTR_LOGICAL_SIZE ][1] = 0x0A; 
+    		    retPtr[ PTR_LOGICAL_SIZE ][2] = '\0'; 
+    		    PTR_LOGICAL_SIZE++; // Add extra to LOG_SIZE; 
+    		    i++; // Skip the \x0A char. 
+    		}
+    	    } else {
+    	        retPtr[ PTR_LOGICAL_SIZE ] = new unsigned char[ 2 ];
+    		retPtr[ PTR_LOGICAL_SIZE ][0] = buff[ i ];
+    		retPtr[ PTR_LOGICAL_SIZE ][1] = '\0';
+    	    }
+    
+    	    PTR_LOGICAL_SIZE++; 	    
+    	}
+    }
+    retPtr[ PTR_LOGICAL_SIZE ] = 0;
+
+    return retPtr; 
+}
+
+
+
+// Returns position AFTER match if match is found
+// **Note: PosInHay MUST NOT be greater HAY;
+// Returns 0 if no match;
+std::size_t UNSAFE_isMatch( const unsigned char *needle,
+		     const unsigned char *HAY,
+		     const std::size_t &PosInHay,
+		     const unsigned int needleLen
+		   )
+{
+    unsigned int NEEDLE_LEN = needleLen; if( !NEEDLE_LEN ) { NEEDLE_LEN = strlen( (char *)needle ); }
+    if( !NEEDLE_LEN ) { return 0; }
+    for(unsigned int i = 0; i < NEEDLE_LEN; i++) { if( !HAY[ PosInHay+i ] ) { return 0; } }
+    
+    const unsigned char *const zeroPosition = HAY; 
+    HAY += PosInHay + ( NEEDLE_LEN - 1 );
+    
+    // Start iterating through HAY[] until NULL_TERMINATOR is found('\0'); 
+    while( *HAY ) { 
+        if( memcmp( needle, (HAY-(NEEDLE_LEN-1)), NEEDLE_LEN ) == 0 )
+            return (((reinterpret_cast<const int>(HAY)) - reinterpret_cast<const int>(zeroPosition))+1) ; // ASSUME SIZEOF(1); / sizeof(char ); 
+                    
+        HAY++;
+    }
+    
+    return 0; 
+}
+ 		     				  
+
+
+void removeInvalidatedDeliminators( ParseFileClass &cvsFile,
+				    unsigned char **& ppDelimStrs,
+				    const int NUM_LINES_TO_CHECK )
+{
+    if( !ppDelimStrs ) { return; }
+    if( !ppDelimStrs[0] ) { return; }
+
+    // Store position. Restore at end of funciton.
+    std::size_t SAVED_POS = cvsFile.getPositionPointer();
+
+
+    const int BUFF_MAX = 1023;
+    unsigned char buff[ BUFF_MAX+1 ];
+    const unsigned char *buffP = buff; 
+    const unsigned char *const ENTER = (unsigned char *)"\x0A";
+
+    int PPDELIMSTR_SIZE = 0; while( ppDelimStrs[ PPDELIMSTR_SIZE ] ) { PPDELIMSTR_SIZE++; }
+
+    // Read first 60 lines(up to), only keep delims that are in each line
+    // If delim not found in line, remove. 
+    unsigned int delimChar;
+    std::size_t beg_pos = cvsFile.getPositionPointer();
+    std::size_t pos = beg_pos;
+    std::size_t len = 0;
+    int lineChecked = 0;
+    while( (pos = cvsFile.getLine(buff, BUFF_MAX, ENTER)) )
+    {
+    	len = pos - beg_pos;
+    	beg_pos = pos;
+    	addEndingDelimThatParseFileClassOmits( buff,
+    					       len 
+    					     );
+    	// Take strings from ppDelimStrs, search through line for match
+    	// If a delimStr is not matched in line, REMOVE THIS FROM ppDelimStrs. 
+    	for( int a =0; a < PPDELIMSTR_SIZE; a++ ) { 
+            // Actually, set to null string. Delete after loop is over.
+            if( !UNSAFE_isMatch( ppDelimStrs[ a ], buff) )  // Returns 0 on fail; PosAfterMatch if success. 
+                ppDelimStrs[ a ][0] = '\0';
+    	}
+    
+    	// exit if checked NUM_LINES_TO_CHECK of lines. 
+    	lineChecked++;
+    	if( lineChecked == NUM_LINES_TO_CHECK ) {
+    	    break;  
+    	}
+    }
+
+    int newLogicalSize = 0;
+    for(int a = 0; a < PPDELIMSTR_SIZE; a++) { 
+	// Flagged to delete. 
+	if( !ppDelimStrs[ a ][0] ) {
+	    delete ppDelimStrs[ a ];
+	}
+	else {
+	    // Move delim to keep to index [ newLogicalSize ];
+	    if( newLogicalSize != a ) 
+		ppDelimStrs[ newLogicalSize ] = ppDelimStrs[ a ];
+
+	    newLogicalSize++;
+	}
+    }
+    ppDelimStrs[ newLogicalSize ] = 0;
+
+    // Of course, newLogicalSize is now == to SIZE of ppDelimStrs. 
+
+    // Restore saved position.
+    cvsFile.setGetPointer( SAVED_POS );    
+
+    return ; 
+}
+
+
+
+
+
+
+
+
+void printHex(unsigned char *str )
+{
+    const char* const numStr= { "0123456789ABCDEF" };
+    
+    int i =0;
+    for(  i =0 ; str[ i ]; i++) {
+        if( (i+16)  % 16 == 0 ) { std::cout << std::endl; }
+        std::cout << "0x" << numStr[ str[ i ]>>4 ] << numStr[ str[ i ]&0x0F ] << " ";
+    }
+    std::cout << "SIZE: "<<i<<"\n";
 }
