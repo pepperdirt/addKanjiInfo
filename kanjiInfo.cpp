@@ -367,10 +367,10 @@ int main(const int argc, const char **const argv) {
             return 1; }
         // --input-string STRING     
         inputFile = tmpFileName;
-//        std::ofstream out_f; out_f.open( inputFile, std::ios::binary );
-//        out_f.write( argv[ INPUT_STRING_SWITCHES ], strlen( argv[ INPUT_STRING_SWITCHES ] ) );
-//        out_f.write( ENTER, 1 );
-//        out_f.close();
+        std::ofstream out_f; out_f.open( inputFile, std::ios::binary );
+        out_f.write( argv[ INPUT_STRING_SWITCHES ], strlen( argv[ INPUT_STRING_SWITCHES ] ) );
+        out_f.write( ENTER, 1 );
+        out_f.close();
         
         
         if( inputFile ) { 
@@ -1045,6 +1045,8 @@ int main(const int argc, const char **const argv) {
     } 
     out.close();
     std::cout.rdbuf(coutbuf); //reset to standard output again    
+
+    std::remove( tmpFileName ); // deletes temp file. 
 
     if( error_afterthoughtVariable ) { 
         std::cout << "Error. Stopped prematurely at line position("
