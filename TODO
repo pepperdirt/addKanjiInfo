@@ -13,6 +13,11 @@ Bout completed about what I wanted. Some things I'm thinking...
 	 add also... 
 
 TODO:
+	- Create some logic to switch between ANSI(Windows) and UTF-8
+	  so poor Windows users may use the --input-string switch
+	      - This will require Windows users to have 2 Databases.
+	        One for UTF-8 strings, and another for when using
+		--input-strings switch... It's the best I can do for now. 
 	- Either fix 'Rubify()' member function to return
 	  something other than <ruby></> syntax(WEB), or 
 	  simply write a non-member function inside class to strip
