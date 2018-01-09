@@ -59,6 +59,8 @@ jmdict_InfoClass::jmdict_InfoClass(const char fName[],
         indexOfbeginingKanjiOnly_keyTable[ i ] = 0; 
     }
     
+    if( OPTIMIZE_LEVEL == 0 ) { return ; }
+    
     std::size_t pos = 3; // FIRST KANJI; 
     unsigned char keb[] = "<keb>";
     unsigned char endKeb[] = "</";
@@ -406,6 +408,26 @@ std::vector<ustring> jmdict_InfoClass::onyomi() const
 }
 
 
+// return 0 on success.
+int jmdict_InfoClass::incrementIndex() // Virtual 
+{
+    if( OPTIMIZE_LEVEL ) { return KanjiInfoClass::incrementIndex(); }
+    
+    // Find the next 
+    // FIND FIRST KEB !!
+    unsigned char *const keb      = (unsigned char *)"<keb>";
+    unsigned char *const endKeb   = (unsigned char *)"</";
+    // SIGNATURE: <keb>???*</keb>
+    std::size_t pos = KanjiInfoClass::searchStr( keb );
+    if( pos ) { 
+        pos+= 5;
+        
+        return KanjiInfoClass::setIndex( pos ); // should be 0 on success. 
+    }
+    
+    return 1;
+}
+
 void jmdict_InfoClass::help(
                                          unsigned char *retval 
                                        ) 
@@ -591,8 +613,9 @@ int jmdict_InfoClass::inputLenTest(const unsigned char *s, const int i = 0) cons
     return testLenOfStr; 
 }
 
-
-int jmdict_InfoClass::setKanji( const unsigned char *s)
+// Returns Kanji NUMBER, NOT AN INDEX! ( shouldn't matter to user. Make class accept as-is and act accordingly ( knowing this is the vaule it SHOULD get back when calling funcitons );
+// Returns 0 on fail; 
+std::size_t jmdict_InfoClass::kanjiNumber(const unsigned char *s) const // Virtual; 
 {
     int sLen = 0;
     while( s[sLen] ) { sLen++; }
@@ -604,61 +627,97 @@ int jmdict_InfoClass::setKanji( const unsigned char *s)
     if( kat&& kat < kanaPos ) { kanaPos = kat; }
     if( kanaPos == 0 ) { kanaPos = kat; }
     
-    unsigned char endDelim[] = "</";
+    const unsigned char *const endDelim = (unsigned char *)"</";
 
     std::size_t nextIndexVal;
     int numIndexesLeft;
     std::size_t index_i = 0;
-    if( kanaPos 
-    &&  (index_i = indexOfendingKanjiOnly_keyTable[ sLen ]) ) 
-    {
-        index_i--;
-        // Find how many are avaliable
-        nextIndexVal = nextIndex_keyTable( sLen );
-        numIndexesLeft = nextIndexVal - index_i;
-    }
-    else if( !kanaPos 
-    &&    (index_i = indexOfbeginingKanjiOnly_keyTable[ sLen ]) )
-    {
-        index_i--;
-        // Find how many are avaliable
-        nextIndexVal = (indexOfendingKanjiOnly_keyTable[ sLen ]);
-        
-        if( !nextIndexVal ) {
-           nextIndexVal = nextIndex_keyTable( sLen );
-        } else { 
-           nextIndexVal--; 
-        }
-           
-        numIndexesLeft = nextIndexVal - index_i;
-
-    }
-    else { return 1;  }// FAIL; 
-
     
-    const std::size_t SAVED_INDEX = KanjiInfoClass::getIndex();
-    for(int k = 0; k < numIndexesLeft; k++) { 
-       KanjiInfoClass::setIndex( index_i );
-       
-       if( searchStr( s, endDelim ) ) { return 0; }
-       // s NOT FOUND between <keb>???</keb>
-       
-       index_i++;
-    }
+    if( OPTIMIZE_LEVEL > 0 ) { 
+        if( kanaPos 
+        &&  (index_i = indexOfendingKanjiOnly_keyTable[ sLen ]) ) 
+        {
+            index_i--;
+            // Find how many are avaliable
+            nextIndexVal = nextIndex_keyTable( sLen );
+            numIndexesLeft = nextIndexVal - index_i;
+        }
+        else if( !kanaPos 
+        &&    (index_i = indexOfbeginingKanjiOnly_keyTable[ sLen ]) )
+        {
+            index_i--;
+            // Find how many are avaliable
+            nextIndexVal = (indexOfendingKanjiOnly_keyTable[ sLen ]);
+            
+            if( !nextIndexVal ) {
+               nextIndexVal = nextIndex_keyTable( sLen );
+            } else { 
+               nextIndexVal--; 
+            }
+               
+            numIndexesLeft = nextIndexVal - index_i;
+    
+        }
+        else { return 0;  }// FAIL; 
 
-    // Before exiting on FAIL, return original SAVED_POSITION
-    KanjiInfoClass::setIndex( SAVED_INDEX );
-    return 2; // err 2;       
+        const std::size_t SAVED_INDEX = KanjiInfoClass::getIndex();
+        for(int k = 0; k < numIndexesLeft; k++) { 
+           // Repurpose nextIndexVal == position in file; 
+           nextIndexVal = KanjiInfoClass::getKeyPos( index_i ); 
+           
+           if( searchStr( s, endDelim, nextIndexVal ) ) { return index_i; }
+           // s NOT FOUND between <keb>???</keb>
+           
+           index_i++;
+        }
+    
+        return 0; 
+    }
+    else { 
+        // No Optimize. No lookup table. 
+        // Search whole DB for Kanji *s
+        const unsigned char *const keb = (unsigned char *)"<keb>";  // endDelim
+        const int KEB_TAG_SIZE = 5;
+//        resetKanjiIndex(); // sets to 1; 
+
+        nextIndexVal = 1;
+        index_i = nextIndexVal;
+        while( (index_i = searchStr( keb, index_i )) ) { 
+            index_i+= KEB_TAG_SIZE; // Skip past kebTag; 
+            
+            if( index_i ==  searchStr( s, endDelim, index_i ) ) { 
+                return index_i; 
+            }
+            
+            // s NOT FOUND between <keb>???</keb>
+            index_i+= 4; // Past <keb></keb> </entry> 
+        }
+        
+        return 0;
+    }
+    
 }
+
 
 // starts at startingLen, and tries to find definition indexPos
 // If not found, return 0; ( MEANING: LOGIC ERROR: cannot give first <keb>[0] ; )
 std::size_t jmdict_InfoClass::getIndex( const unsigned char *str, 
                                         const int startingLen  )
-{
+{    
+    const unsigned char * db;
+    if( OPTIMIZE_LEVEL == 0 ) { 
+        // No optimizations. 
+        // Search through WHOLE DATABASE. 
+
+        // Used for noOptimize; 
+        db = getDB();
+    }
+
     unsigned char s[startingLen];
     for(int i=0; i < startingLen; i++) { s[i] = str[i]; }
     s[startingLen]= '\0';
+
+
               
     int sLen = startingLen; // Can be (-); 
     int kanaPos = posOfHiragana( s );//  - 1;
@@ -678,95 +737,123 @@ std::size_t jmdict_InfoClass::getIndex( const unsigned char *str,
         
         while( kanaPos < sLen ) { 
             if( (index_i = indexOfendingKanjiOnly_keyTable[ sLen ]) ) { 
-               index_i--;
-               // SomeKanas can be compared w/s(KEY)
-               // Find how many are avaliable
-               std::size_t nextIndexVal = nextIndex_keyTable( sLen );
-               int numIndexesLeft = nextIndexVal - index_i;
-
-               for(int k = 0; k < numIndexesLeft; k++) { 
-//               if( sLen == highestSizeValue ) { break; }
+               
+                // index_i--;
+                const std::size_t PATCH_FOR_NOT_CORRECTING_INDEX__nextIndex_keyTable = index_i-1;
+                // SomeKanas can be compared w/s(KEY)
+                // Find how many are avaliable
+                std::size_t nextIndexVal = nextIndex_keyTable( sLen );
+                std::size_t numIndexesLeft = nextIndexVal - PATCH_FOR_NOT_CORRECTING_INDEX__nextIndex_keyTable;
+                for(int k = 0; k < numIndexesLeft; k++) { 
+ //               if( sLen == highestSizeValue ) { break; }
                    
-                   KanjiInfoClass::setIndex( index_i );
+                    KanjiInfoClass::setIndex( index_i );
+                    
+                    if( searchStr( s, endDelim ) ) { return index_i; }
+                    // s NOT FOUND between <keb>???</keb>
+                    
+                    index_i++;
+                }
+            }
+            else if( OPTIMIZE_LEVEL == 0 ) { 
+               // Need to find Kanji+Kana Combos ONLY!
+               // Need to find sLen LENGTH Entries ONLY!
+               resetKanjiIndex(); // Search WHOLE DB.
+               std::size_t position = 0;
+               std::size_t lengthOfKeb = 0;
+               int tempCount = 0;
+               unsigned char buff[ 255 ];
+               
+               // incrementIndex() Finds 1st <keb> entry from pos 0 ( OPTIMIZE_LEVEL == 0 ); 
+               while( incrementIndex() ) {
+                   pos = KanjiInfoClass::getIndex(); 
+                   lengthOfKeb = KanjiInfoClass::searchStr( endDelim, pos ) - pos;
                    
-                   if( searchStr( s, endDelim ) ) { return index_i; }
-                   // s NOT FOUND between <keb>???</keb>
-                   
-                   index_i++;
+                                   
+                   if(   lengthOfKeb == sLen 
+                      && KanjiInfoClass::searchStr(s, endDelim, pos ) )  {
+                       for( tempCount = 0; tempCount < lengthOfKeb; tempCount++) { buff[tempCount] = db[pos+tempCount]; }
+                       buff[lengthOfKeb] = '\0';
+                       
+                       if(   posOfHiragana(buff, 0) 
+                          || posOfKatakana(buff, 0) 
+                         ) 
+                       { 
+                           // Matches ALL criteria 
+                           return pos; // Since cannot return index( OPTIMIZE_LEVEL == 0 );
+                       }
+                   }
                }
             }
             sLen--;    
             s[sLen] = '\0';
         }
-        
-        // sLen is before a kana;
-        // NO KANA, search through KANJI only
-        while( sLen > 0 ) { 
-            if( (index_i = indexOfbeginingKanjiOnly_keyTable[ sLen ]) ) { 
-               index_i--;
-               // SomeKanas can be compared w/s(KEY)
-               // Find how many are avaliable
-               std::size_t nextIndexVal = (indexOfendingKanjiOnly_keyTable[ sLen ]);
+    }
+
+    // sLen is before a kana;
+    // NO KANA, search through KANJI only
+    while( sLen > 0 ) { 
+        if( (index_i = indexOfbeginingKanjiOnly_keyTable[ sLen ]) ) { 
+           //  index_i--;
+           const std::size_t PATCH_FOR_NOT_CORRECTING_INDEX__nextIndex_keyTable = index_i-1;
+           // SomeKanas can be compared w/s(KEY)
+           // Find how many are avaliable
+           std::size_t nextIndexVal = (indexOfendingKanjiOnly_keyTable[ sLen ]);
+           
+           int numIndexesLeft; 
+           if( !nextIndexVal ) {
+               nextIndexVal = nextIndex_keyTable( sLen );
+           } else { 
+               nextIndexVal--; 
+           }
                
-               int numIndexesLeft; 
-               if( !nextIndexVal ) {
-                   nextIndexVal = nextIndex_keyTable( sLen );
-               } else { 
-                   nextIndexVal--; 
-               }
-                   
-               numIndexesLeft = nextIndexVal - index_i;
+           numIndexesLeft = nextIndexVal - PATCH_FOR_NOT_CORRECTING_INDEX__nextIndex_keyTable;
 
-               for(int k = 0; k < numIndexesLeft; k++) { 
+           for(int k = 0; k < numIndexesLeft; k++) { 
+               
+               KanjiInfoClass::setIndex( index_i );
+               
+               if( searchStr( s, endDelim ) ) { return index_i; }
+               // s NOT FOUND between <keb>???</keb>
+               
+               index_i++;
+           }
+        }
+        else if( OPTIMIZE_LEVEL == 0 ) { 
+           // Need to find Kanji+Kana Combos ONLY!
+           // Need to find sLen LENGTH Entries ONLY!
+           resetKanjiIndex(); // Search WHOLE DB.
+           std::size_t position = 0;
+           std::size_t lengthOfKeb = 0;
+           int tempCount = 0;
+           unsigned char buff[ 255 ];
+           
+           // incrementIndex() Finds 1st <keb> entry from pos 0 ( OPTIMIZE_LEVEL == 0 ); 
+           while( incrementIndex() ) {
+               pos = KanjiInfoClass::getIndex(); 
+               lengthOfKeb = KanjiInfoClass::searchStr( endDelim, pos ) - pos;
+               
+                               
+               if(   lengthOfKeb == sLen 
+                  && KanjiInfoClass::searchStr(s, endDelim, pos ) )  {
+                   for( tempCount = 0; tempCount < lengthOfKeb; tempCount++) { buff[tempCount] = db[pos+tempCount]; }
+                   buff[lengthOfKeb] = '\0';
                    
-                   KanjiInfoClass::setIndex( index_i );
-                   
-                   if( searchStr( s, endDelim ) ) { return index_i; }
-                   // s NOT FOUND between <keb>???</keb>
-                   
-                   index_i++;
+                   // MUST NOT contain hirgana/Katakana.
+                   if(   !posOfHiragana(buff, 0) 
+                      && !posOfKatakana(buff, 0) 
+                     ) 
+                   { 
+                       // Matches ALL criteria 
+                       return pos; // Since cannot return index( OPTIMIZE_LEVEL == 0 );
+                   }               
                }
-            }
-            sLen--;    
-            s[sLen] = '\0';            
+           }
         }
 
+        sLen--;    
+        s[sLen] = '\0';            
     }
-    else { 
-        // sLen is before a kana;
-        // NO KANA, search through KANJI only
-        while( sLen > 0 ) { 
-
-            if( (index_i = indexOfbeginingKanjiOnly_keyTable[ sLen ]) ) { 
-               index_i--;
-               // SomeKanas can be compared w/s(KEY)
-               // Find how many are avaliable
-               std::size_t nextIndexVal = (indexOfendingKanjiOnly_keyTable[ sLen ]);
-
-               int numIndexesLeft; 
-               if( !nextIndexVal  ) {
-                   nextIndexVal = nextIndex_keyTable( sLen );
-
-               } else { 
-                   nextIndexVal--; 
-               }
-                   
-               numIndexesLeft = nextIndexVal - index_i;
-               for(int k = 0; k < numIndexesLeft; k++) { 
-                   
-                   KanjiInfoClass::setIndex( index_i );
-                   
-                   if( searchStr( s, endDelim ) ) { return index_i; }
-                   // s NOT FOUND between <keb>???</keb>
-                   
-                   index_i++;
-               }
-            }
-            sLen--;    
-            s[sLen] = '\0';            
-        }
-    }
-
 
     return 0;
 }
@@ -805,6 +892,7 @@ unsigned int jmdict_InfoClass::rubify(// jmdict_InfoClass &ths,
     int atLeastOneKanaPresent = 0;
         std::size_t hir = posOfHiragana( keb, 0 ); // (+1)
         std::size_t kat = posOfKatakana( keb, 0 ); // 0 on fail; 
+        
         // Find smallest value
         if( kat && hir > kat ) { atLeastOneKanaPresent = kat; }
         else if( hir ) {         atLeastOneKanaPresent = hir; }
@@ -953,6 +1041,7 @@ void jmdict_InfoClass::reb(unsigned char *retval)
     std::size_t end = searchStr( endReb, pos );
     
     
+    // Moves position pointer... !!
     readStr( retval, (end-pos), pos );
     return ;
 }
@@ -1031,25 +1120,33 @@ void jmdict_InfoClass::addFurigana(const unsigned char *file,
 
                std::size_t index_i // START OF KANJI && KANA MIX <keb> 
                 = indexOfendingKanjiOnly_keyTable[ 9 ];
-               index_i--; 
+//               index_i--; 
+const std::size_t PATCH_FOR_NOT_CORRECTING_INDEX__nextIndex_keyTable = index_i-1;                 
 std::size_t sLen = 9;
 
                // Find how many are avaliable
                std::size_t nextIndexVal = nextIndex_keyTable( sLen );
-               int numIndexesLeft = nextIndexVal - index_i;
+               int numIndexesLeft = nextIndexVal - PATCH_FOR_NOT_CORRECTING_INDEX__nextIndex_keyTable;
                const unsigned char c = buff[6];
                buff[6] = '\0';
-               unsigned int k = 0;
-               for( k = 0; k < numIndexesLeft; k++) { 
-                   setIndex( index_i );
-                   
-                   // SEARCH LOOSE for kanji ( NO DELIM </keb> );
-                   if( searchStr( buff, endDelim ) ) { break; }
-                   // s NOT FOUND between <keb>???</keb>
-                   
-                   index_i++;
+               unsigned int k = 1;
+               resetKanjiIndex();
+               // Run once, then loop; 
+               if( !searchStr( buff, endDelim ) ) { 
+                   while( incrementIndex()==0 ) {
+                       // SEARCH LOOSE for kanji ( NO DELIM </keb> );
+                       if( searchStr( buff, endDelim ) ) { break; }
+                       // s NOT FOUND between <keb>???</keb>
+                   }
                }
                buff[6] = c;
+               
+               // Probably wont be any consequence leaving this value in k;
+               k = KanjiInfoClass::getIndex();
+               if( incrementIndex() != 0 )  // error
+                   k = numIndexesLeft; 
+               else
+                   KanjiInfoClass::setIndex( k ); // reset; 
 
                // I believe if == there was NO MATCH for Kanji;
 //               if( index_i != numIndexesLeft ) { 

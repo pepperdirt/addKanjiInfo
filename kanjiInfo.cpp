@@ -24,6 +24,8 @@
  * github:	github.com/pepperdirt
  *
 	-Last Updated:2018/01/07  - Version 0.1.3d
+   	                            Fully implemented --input-string swtich
+                                 + Speed increase for single STRING lookups. 
 	                            Add switch --input-string
                               - Version 0.1.3c
 	                            + added --tell-me-delims switch
@@ -142,7 +144,7 @@ void removeInvalidatedDeliminators( ParseFileClass &cvsFile,
 void guessDeliminators(ParseFileClass &cvsFile  );
 
 int main(const int argc, const char **const argv) {
-
+//for( int i =0 ; i < argc; i++) { std::cout << "["<<i<<"]("<< argv[i] << std::endl;}
     if( argc == 1 ) { help(); return 0; }
 //std::vector<ustring> test;
 //    const unsigned char **tt = ((const unsigned char **)&test[0]);    
@@ -327,9 +329,9 @@ int main(const int argc, const char **const argv) {
                 break; 
             }    
         }
-        
+
         // Delim exists, add it; 
-        if( i != argc ) {      
+        if( i == argc && switchIndexes[ G_GLOSS ] != argc  ) {      
  	    if( switchIndexes[ G_GLOSS ] != argc ) 
      		GLOSS_DELIM = (unsigned char *)argv[switchIndexes[ G_GLOSS ]];
         }        
@@ -355,6 +357,9 @@ int main(const int argc, const char **const argv) {
 
 
     // Can I have this insid the if statement??
+    kanjiDB::OPTIMIZE::OPTIMIZE Jmdict_OptimizeLevel( kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
+    kanjiDB::OPTIMIZE::OPTIMIZE Wordnet_OptimizeLevel( kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
+
     const char *const tmpFileName = "tmp_file_input_string"; // Need to find writable directories for win/linux. 
     if(switchIndexes[ INPUT_STRING_SWITCHES ]  ) {
         if( !argv[switchIndexes[ INPUT_STRING_SWITCHES ]] ) { 
@@ -362,10 +367,10 @@ int main(const int argc, const char **const argv) {
             return 1; }
         // --input-string STRING     
         inputFile = tmpFileName;
-        std::ofstream out_f; out_f.open( inputFile, std::ios::binary );
-        out_f.write( argv[ INPUT_STRING_SWITCHES ], strlen( argv[ INPUT_STRING_SWITCHES ] ) );
-        out_f.write( ENTER, 1 );
-        out_f.close();
+//        std::ofstream out_f; out_f.open( inputFile, std::ios::binary );
+//        out_f.write( argv[ INPUT_STRING_SWITCHES ], strlen( argv[ INPUT_STRING_SWITCHES ] ) );
+//        out_f.write( ENTER, 1 );
+//        out_f.close();
         
         
         if( inputFile ) { 
@@ -383,6 +388,8 @@ int main(const int argc, const char **const argv) {
         printToField   = 1; // P_PRINT_ALL_KANJI_DATA_TO_FILED_SPECIFIED_BY_P
         switchIndexes[ I_IN_FILE ]  = 1;
         
+        Jmdict_OptimizeLevel.setVal(kanjiDB::OPTIMIZE::NO_OPTIMIZATION ());
+        Wordnet_OptimizeLevel.setVal(kanjiDB::OPTIMIZE::NO_OPTIMIZATION ());
     }
 
     if( !switchIndexes[ I_IN_FILE ]  ) {
@@ -391,8 +398,8 @@ int main(const int argc, const char **const argv) {
     }
     
 
-    kanjiDB::Wordnet_DictClass Wordnet( WORDNET,kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );  
-    kanjiDB::jmdict_InfoClass Jmdict  ( JMDICT, kanjiDB::OPTIMIZE::OPTIMIZE_SOME() );
+    kanjiDB::Wordnet_DictClass Wordnet( WORDNET,Wordnet_OptimizeLevel );  
+    kanjiDB::jmdict_InfoClass Jmdict  ( JMDICT, Jmdict_OptimizeLevel );
     kanjiDB::kanjiDict2_InfoClass kanjiDict2( KANJIDICT2 );
     ParseFileClass cvsFile( inputFile );
     if( fieldsToSearch.size() == 0 ) { 
@@ -407,12 +414,21 @@ int main(const int argc, const char **const argv) {
     
     unsigned char *GZIP_HEADER = (unsigned char *)"\x1F\x8B\x08";
     if( 1==1 ) { 
-//        unsigned char buff[4];
+        unsigned char buff[4];
 //        // Test if GZIPPED
-//        Jmdict.readStr(buff, 3, 0);
-//        int i = 0;
-//        while( i<3 && buff[ i ] == GZIP_HEADER[ i ]  ){ i++; }
-        if( Jmdict.getKeySize() < 5 ) {  std::cout << "Error. "<<JMDICT<<" MUST BE unzipped/decompressed!\n"; return 1<<8; }
+        if( Jmdict_OptimizeLevel.getVal() == 0 ) {
+            // Manual check of GZIP_HEADER; 
+            Jmdict.readStr(buff, 3, 1);
+            int i = 1; // cannot read first str w/readStr;
+            while( i<3 && buff[ i-1 ] == GZIP_HEADER[ i ]  ){ i++; }
+            if( i == 3 ) { 
+                std::cout << std::cout << "Error. "<<JMDICT<<" MUST BE unzipped/decompressed!\n"; 
+                return 2; 
+            }
+            
+            Jmdict.resetKanjiIndex(); // Not realy necessary;  
+        }
+        else if( Jmdict.getKeySize() < 5 ) {  std::cout << "Error. "<<JMDICT<<" MUST BE unzipped/decompressed!\n"; return 1<<8; }
         
 //        kanjiDict2.readStr(buff, 3, 0);
         
@@ -420,7 +436,22 @@ int main(const int argc, const char **const argv) {
 //        while( i<3 && buff[ i ] == GZIP_HEADER[ i ]  ){ i++; }
         if( kanjiDict2.getKeySize() < 5 ) {  std::cout << "Error. "<<KANJIDICT2<<" MUST BE unzipped/decompressed!\n"; return 1<<9; }
 
-        if( Wordnet.getKeySize() < 5 )    { std::cout << "Error. "<<WORDNET    <<" MUST BE unzipped/decompressed!\n"; return 1<<10; }
+
+
+
+        if( Wordnet_OptimizeLevel.getVal() == 0 ) {
+            // Manual check of GZIP_HEADER; 
+            Wordnet.readStr(buff, 3, 1);
+            int i = 1; // cannot read first str w/readStr;
+            while( i<3 && buff[ i-1 ] == GZIP_HEADER[ i ]  ){ i++; }
+            if( i == 3 ) { 
+                std::cout << std::cout << "Error. "<<JMDICT<<" MUST BE unzipped/decompressed!\n"; 
+                return 2; 
+            }
+            
+            Wordnet.resetKanjiIndex(); // Not realy necessary;  
+        }
+        else if( Wordnet.getKeySize() < 5 )    { std::cout << "Error. "<<WORDNET    <<" MUST BE unzipped/decompressed!\n"; return 1<<10; }
 //        
 //        kanjiDict2.getKeySize();
     }
@@ -432,6 +463,7 @@ int main(const int argc, const char **const argv) {
     
     if( !doMarkupFile ) { 
 
+                            BR = (unsigned char *)ENTER; 
                             FRONT_Q_HEADER = BR;
                             END_FRONT_MAIN = NULL_CHAR;
                             
@@ -456,17 +488,17 @@ int main(const int argc, const char **const argv) {
                             SENTENCES_ADDED_HEADER = NULL_CHAR;
                             END_SENTENCES_ADDED = NULL_CHAR; 
 
-                            SENTENCES_ADDED_HEADER = (unsigned char *)"<label class=\"sentences\">";
-                            END_SENTENCES_ADDED = (unsigned char *)"</label>";
+                            SENTENCES_ADDED_HEADER = NULL_CHAR;
+                            END_SENTENCES_ADDED = BR;
 
-                            SYNSET_HEADER =       (unsigned char *)"<label class=\"synsets\">";
-                            END_SYNSET    =       (unsigned char *)"</label>";
+                            SYNSET_HEADER =       NULL_CHAR;
+                            END_SYNSET    =       BR;
 
-                            GLOSS_HEADER =       (unsigned char *)"<label class=\"gloss\">";
-                            END_GLOSS    =       (unsigned char *)"</label>";
+                            GLOSS_HEADER =       NULL_CHAR;
+                            END_GLOSS    =       BR;
 
-                            SIMILAR_GLOSS_HEADER =       (unsigned char *)"<label class=\"similargloss\">";
-                            END_SIMILAR_GLOSS    =       (unsigned char *)"</label>";
+                            SIMILAR_GLOSS_HEADER =      NULL_CHAR;
+                            END_SIMILAR_GLOSS    =       BR;
 
     }
     // END USER INPUT    
@@ -522,7 +554,7 @@ int main(const int argc, const char **const argv) {
     std::ofstream out; 
     std::size_t pos = 0;
     // Start reading through search fields
-    if( KHelpFLAGS && fieldsToSearch.size() ) {
+    if( 1==1 || KHelpFLAGS && fieldsToSearch.size() ) {
         if( (KHelpFLAGS & S_FLAG) && !sentences ) {
             std::cout << "Error. Need to supply sentences file (-E file) when using switch -K S.\n";
             return 8;
@@ -614,6 +646,7 @@ int main(const int argc, const char **const argv) {
 
             if(  fieldNumber == fieldsToSearch[0] ) { 
                 if( doGloss ||  doSynsets || doRelationWordnetSentences ) { 
+                    
 		            int nGloss =0, nSynsets, nRelationWordnetSentences;
                     // Addition of Wordnet Project
                     // These are listed FIRST, meaning they show first in cards;
@@ -626,29 +659,29 @@ int main(const int argc, const char **const argv) {
                     // Success
                     if( glossTerm[0] &&  Wordnet.setKanji( glossTerm ) == 0 ) {
                         unsigned char gloss[320];
-                        
                         std::size_t INDEX_OF_TERM = Wordnet.getIndex();  // Term id
+
             			std::vector<ustring> synsetIDs;
             			const unsigned char **synTmp;
             
             			std::vector<ustring> definitions;
             			if( INDEX_OF_TERM ) {  
-                                        synsetIDs = Wordnet.synset();
-            			    synTmp = (const unsigned char**)&synsetIDs[0];
-            
-            			    Wordnet.setSynsetPos( synTmp[ 0 ] );
-            			    if( Wordnet.defineSynset( gloss ) == 0 ) { 
-            				definitions.push_back(gloss);
-            			        nGloss = 1;
-            			    }
-            
+                            synsetIDs = Wordnet.synset();
+                            if( !synsetIDs.empty() ) {
+                			    synTmp = (const unsigned char**)&synsetIDs[0];
+                
+                			    Wordnet.setSynsetPos( synTmp[ 0 ] );
+                			    if( Wordnet.defineSynset( gloss ) == 0 ) { 
+                				    definitions.push_back(gloss);
+                			        nGloss = 1;
+                			    }
+                            }
             
             			}
             
             //			if( synsetIDs.size() ) 
             			    // BROKEN: !!
             			    // definitions = defineGloss(Wordnet, synsetIDs, 3 );
-            			
                         if( (nGloss = definitions.size()) ) { 
             			    if( !doGloss ) 
             			        nGloss = 0; 
@@ -659,7 +692,6 @@ int main(const int argc, const char **const argv) {
                             unsigned int MAX_LEN_FURIGANAIZED = 2400;
                             unsigned char furiganaizedSentence[ MAX_LEN_FURIGANAIZED + 1 ];
                         
-
                             std::vector<ustring> exampleSentences;
                             if( doRelationWordnetSentences ) { 
                                 // Sets synsets inside function, using sysnetIDs; 
@@ -677,11 +709,10 @@ int main(const int argc, const char **const argv) {
                             }
                             nRelationWordnetSentences = exampleSentences.size();                                
 
-                            
                             std::vector<ustring> termsMatchingSynsets;
                             if( doSynsets ) { 
                                 const unsigned char **holdSynsetIDs = (const unsigned char**)&synsetIDs[0];
-                                Wordnet.setSynsetPos( holdSynsetIDs[0] );
+                                
                                 termsMatchingSynsets = synsetIdWrittenForm( Wordnet );
                             }
                             nSynsets = termsMatchingSynsets.size();
@@ -708,7 +739,7 @@ int main(const int argc, const char **const argv) {
                                 }
                                 wordnetInfoToAdd.push_back(BR );
                             }
-                            
+
                             if( nRelationWordnetSentences ) { 
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Example Sentences:<br>");
                                 const unsigned char **tt   = ((const unsigned char **)&exampleSentences[0]);
@@ -729,7 +760,7 @@ int main(const int argc, const char **const argv) {
                                 }
                                 wordnetInfoToAdd.push_back(BR );
                             }
-                            
+
                             const unsigned char *const space = (unsigned char *)" ";
                             if( nSynsets ) { 
                                 wordnetInfoToAdd.push_back( (unsigned char *)"Synsets: ");
@@ -859,25 +890,38 @@ int main(const int argc, const char **const argv) {
                             AddToFieldSelected.push_back( kanji );
                             AddToFieldSelected.push_back( END_MAIN_KANJI );
                             
-                            AddToFieldSelected.push_back( MAIN_ONYOMI_HEADER );
-                            l=onYomi.size();for(int j=0;j<l;j++){AddToFieldSelected.push_back( onYomi[j] ); if(j+1<l){AddToFieldSelected.push_back( YOMI_DELIM );}}
-                            AddToFieldSelected.push_back( END_MAIN_ONYOMI );
-                            AddToFieldSelected.push_back( MAIN_KUNYOMI_HEADER );
-                            l=kunYomi.size();for(int j=0;j<l;j++){if(j>0||onYomi.size()){AddToFieldSelected.push_back( YOMI_DELIM );} AddToFieldSelected.push_back( kunYomi[j] );}
-                            AddToFieldSelected.push_back( END_MAIN_KUNYOMI );
-                            AddToFieldSelected.push_back( MAIN_COMPOUND_HEADER );
-                            l=compounds.size();
-                    
-                            // Compound Size == l
-                            for(int j=0;j<l;j++){
-                                AddToFieldSelected.push_back( compounds[j] );
-                                AddToFieldSelected.push_back( (unsigned char *)"<br>" );
+                            l=onYomi.size();
+                            if( l ) {
+                                AddToFieldSelected.push_back( MAIN_ONYOMI_HEADER );
+                                for(int j=0;j<l;j++){AddToFieldSelected.push_back( onYomi[j] ); if(j+1<l){AddToFieldSelected.push_back( YOMI_DELIM );}}
+                                AddToFieldSelected.push_back( END_MAIN_ONYOMI );
                             }
-
-                            AddToFieldSelected.push_back( END_MAIN_COMPOUND );
-                            AddToFieldSelected.push_back( MAIN_TRANSLATE_HEADER );
-                            AddToFieldSelected.push_back( (unsigned char *)translation );
-                            AddToFieldSelected.push_back( END_MAIN_TRANSLATE );
+                            
+                            l=kunYomi.size();
+                            if( l ) { 
+                                AddToFieldSelected.push_back( MAIN_KUNYOMI_HEADER );
+                                for(int j=0;j<l;j++){if(j>0||onYomi.size()){AddToFieldSelected.push_back( YOMI_DELIM );} AddToFieldSelected.push_back( kunYomi[j] );}
+                                AddToFieldSelected.push_back( END_MAIN_KUNYOMI );
+                            }
+                            
+                            l=compounds.size();
+                            if( l ) { 
+                                AddToFieldSelected.push_back( MAIN_COMPOUND_HEADER );
+                        
+                                // Compound Size == l
+                                for(int j=0;j<l;j++){
+                                    AddToFieldSelected.push_back( compounds[j] );
+                                    AddToFieldSelected.push_back( BR );
+                                }
+    
+                                AddToFieldSelected.push_back( END_MAIN_COMPOUND );
+                            }
+                            
+                            if( translation[0] ) { 
+                                AddToFieldSelected.push_back( MAIN_TRANSLATE_HEADER );
+                                AddToFieldSelected.push_back( (unsigned char *)translation );
+                                AddToFieldSelected.push_back( END_MAIN_TRANSLATE );
+                            }
                             //    << translation << END_MAIN_TRANSLATE; // outs trans every time;
                         }
                         
@@ -917,15 +961,11 @@ int main(const int argc, const char **const argv) {
                     err = cvsFile.getLine(buff, FIELD_LEN_MAX, delim);
                     // Before outputing buff, make sure it wasn't to be
                     // Furiganized first!
+                    if( i == 0 ) { std::cout << FRONT_Q_HEADER; }
+                    if( i == 1 ) { std::cout << BACK_Q_HEADER;  }
+                    if( i == 2 ) { std::cout << BR; }
                     if( i+1 != doFuriganize ) {                         
-                        if( i == 0 ) { std::cout << FRONT_Q_HEADER; }
-                        if( i == 1 ) { std::cout << BACK_Q_HEADER;  }
-                        if( i == 2 ) { std::cout << BR; }
                         std::cout <<  buff; // Output to .cvs file;
-
-                        if( i == 0 ) { std::cout << END_FRONT_MAIN; }
-                        if( i == 1 ) { std::cout << END_BACK_MAIN;  }
-                        if( i == 2 ) { std::cout << BR; }
                     } 
                     else 
                     {
@@ -937,6 +977,10 @@ int main(const int argc, const char **const argv) {
                                             MAX_FURIGANA_SIZE );
                         std::cout <<  furiganaAdded;
                     }
+                    if( i == 0 ) { std::cout << END_FRONT_MAIN; }
+                    if( i == 1 ) { std::cout << END_BACK_MAIN;  }
+                    if( i == 2 ) { std::cout << BR; }
+
 
                     // Print out Extra information for Field i+1;                    
                     if( i+1 == printToField ) {
@@ -1224,17 +1268,17 @@ std::cout << "Insert Kanji Info from file in batch.\n"
          << "\t[-P ##] [-F ##] [-K [ F ] [ O ] [ K ] [ S ] [ T ] [ Y ]]  \n"
          << "\t[-O OutputFile] [-E file] [-N ##] \n"
          << "\t[-J JMdict_Dictionary ] [-W jpn_wn_lmf.xml] [-X kanjidic2.xml] \n"
-         << "\t[-M] [-G [Delim]] [-Y] [-R ] [-V] [-H]\n"
+         << "\t[-M] [-G [Delim]] [-Y] [-R ] [--i STRING] [--t] [-V] [-H]\n"
 
          << "\nDictionaries -J and -W are Requried. Download these First and\n"
          << "supply them to program. Default values: JMdict.xml / kanjidic2.xml\n"
 
 		<< "\n"
-		<< "  --tell-me-delims FILE\n"
+		<< "  --t tell-me-delims FILE\n"
 		<< "\t  Searches FILE and tries to tell you what switches to use\n"
 		<< "\t  (concerning the switches -D and -N )\n"
 		<< "  -I\tInput (.cvs) File to read and add kanji information to.\n"
-		<< "  --input-string STRING\n"
+		<< "  --i input-string STRING\n"
 		<< "\t  Use this switch to get information from a single string\n"
         << "\t  if spaces are present, encase the STRING in quotes \"\".\n" 
 		<< "  -D\tSet Deliminator to use in read in (.cvs) file ( FLAG: -I )\n"

@@ -159,7 +159,7 @@ WORDNET_OPTIMIZE_LEVEL( O.getVal() ),
         // skips past keb delim; ( moves position pointer past '<keb>' )        
         numericKeySum = db[pos+2]; numericKeySum |= (db[pos+1]<<8); numericKeySum |= (db[pos+0]<<16);  
         keySum.push_back( numericKeySum );
-        
+
     // END FIRST KEB !!
 
     // First sweep finds kanji with okurigana 
@@ -758,8 +758,8 @@ std::vector<ustring> synsetIdWrittenForm(Wordnet_DictClass &WN)
     unsigned char buff[320];
     std::size_t SAVED_SYNSET_INDEX = WN.getIndex(); // term lookup; 
     std::size_t SYNSET_INDEX = 1;
-    WN.setIndex( SYNSET_INDEX ); // CANNOT == 0; 
-
+    WN.resetKanjiIndex(); // CANNOT == 0; 
+    
     std::vector<ustring> synsetRelTypes = WN.synRealtionTypes();
     
     std::vector<ustring> synsetRelations = WN.synRealtions();

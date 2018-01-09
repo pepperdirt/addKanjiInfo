@@ -3,7 +3,17 @@
  * Programmer:	Pepperdirt
  * github:	github.com/pepperdirt
  *
-         Latest update 2017/12/23 - Version 1.0.0
+         Latest update 2018/01/09 - Version 1.0.0a
+                                    + virtual incrementIndex() added
+                                      - Allows client code to override implementation
+                                    + int setIndex(std::size_t lookupIndex)
+                                      - CHANGED RETURN VALUE!
+                                        * Allows success(0) returned for no lookupTable
+                                          condition. 
+                                        * Client code will use this value(success/fail);
+                                      
+                                        (for instance, when client DOES NOT want a lookup table)
+                                  - Version 1.0.0
                                     + too much stuff to list; 
                                     + if user of class didn't know implementation details, should be okay, 
                                       however, will break code if using without setting Lookuptable:  getlastLookup(); 

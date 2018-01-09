@@ -6,7 +6,7 @@
 #include "ParseFileClass.cpp" // Version 2.0.1; 
 
 
-  const char KanjiInfoClass_VERSION[]= "1.0.0";
+  const char KanjiInfoClass_VERSION[]= "1.0.0a";
 
 namespace unsigned_types { 
     typedef std::basic_string<unsigned char> ustring;
@@ -126,6 +126,8 @@ class KanjiInfoClass {
 
            }      
            
+           // Return 0 on success. 
+           virtual int incrementIndex() { return KanjiInfoClass::setIndex( lastLookup+1 ); }
            
            // Documentation purposes, MUST BE 1 or greater at all times; 
            void resetKanjiIndex() { lastLookup = 1; }
@@ -151,6 +153,7 @@ class KanjiInfoClass {
                    // Use 'lookupIndex' as POSITION; 
                    if( lookupIndex < fileLen() ) { 
                        lastLookup = lookupIndex;
+                       return 0;
                    }
                }
                return 1;

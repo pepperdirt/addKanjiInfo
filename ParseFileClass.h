@@ -6,7 +6,7 @@ class ParseFileClass {
     private:
             /* const */ std::size_t fileLength;      // used for bounds checking
 //            const unsigned char * const file;
-            unsigned char *file;
+            mutable unsigned char *file;
             std::size_t ptrPosition;           // last read position
             std::vector<std::size_t> keyTable; 
 /*
@@ -20,12 +20,13 @@ class ParseFileClass {
     public:
             explicit ParseFileClass(const char fName[]);
            ~ParseFileClass();
-           
-           const unsigned char *getRaw() const { return file; } 
-           std::size_t findPos(const unsigned char [], 
-                                      const unsigned char endDelim[],
-                                      const int paramLen, // 0 == INFINITY
-                                      const int searchDirection ) const; // POSITIVE number == backwards search direction
+          
+	   
+           unsigned char *const &getRaw() const { return file; } 
+                                                std::size_t findPos(const unsigned char *, 
+                                      const unsigned char *endDelim,
+                                      const int &paramLen, // 0 == INFINITY
+                                      const int &searchDirection ) const; // POSITIVE number == backwards search direction
            
            std::size_t getLine(unsigned char retStr[], 
                                       const std::size_t lengthOfRetStr,

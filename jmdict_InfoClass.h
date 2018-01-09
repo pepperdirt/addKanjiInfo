@@ -15,10 +15,11 @@ class OPTIMIZE {
       static OPTIMIZE OPTIMIZE_SOME()    { return OPTIMIZE(1); }
       static OPTIMIZE OPTIMIZE_MORE()    { return OPTIMIZE(2); }
       const int getVal() const { return this->optimizeLevel; }
+      void      setVal(const OPTIMIZE &m) { optimizeLevel = m.getVal(); }
       OPTIMIZE(const OPTIMIZE &m):optimizeLevel(m.getVal()) {}; 
        private:
       explicit OPTIMIZE(unsigned int m):optimizeLevel(m) {}; 
-      const unsigned int optimizeLevel;
+      unsigned int optimizeLevel;
 
 };    
 #endif
@@ -38,6 +39,7 @@ class jmdict_InfoClass: public KanjiInfoClass {
 
            std::vector<ustring> kunyomi () const;
            std::vector<ustring> onyomi  () const;     
+           int incrementIndex(); // Virtual 
            void help(unsigned char *retval);
            void translate(unsigned char *retval);
            std::size_t posOfHiragana(const unsigned char *buff, 
@@ -47,7 +49,9 @@ class jmdict_InfoClass: public KanjiInfoClass {
 
            int inputLenTest(const unsigned char *s, const int i) const;
            // int sizeOfEntry(const unsigned char *s, 
-           int setKanji( const unsigned char *k); // virtual
+//           int setKanji( const unsigned char *k); // virtual ; ! VIRTUAL !=
+           virtual std::size_t kanjiNumber(const unsigned char *k) const; // virtual 
+             
            std::size_t getIndex( const unsigned char *, 
                                  const int startingLen  );
            unsigned int lenOfKanji() {
@@ -71,10 +75,12 @@ class jmdict_InfoClass: public KanjiInfoClass {
            int highestSizeValue;
            
            std::size_t nextIndex_keyTable( unsigned int len ) const
-           {
-               for(int i = len+1, nextIndexVal; i <= highestSizeValue; i++) { 
-                   if((nextIndexVal=indexOfbeginingKanjiOnly_keyTable[ i ])){ return nextIndexVal - 1; }
-                   if((nextIndexVal=indexOfendingKanjiOnly_keyTable[ i ]))  { return nextIndexVal - 1; }
+           { 
+               if( OPTIMIZE_LEVEL > 0 ) { 
+                   for(int i = len+1, nextIndexVal; i <= highestSizeValue; i++) { 
+                       if((nextIndexVal=indexOfbeginingKanjiOnly_keyTable[ i ])){ return nextIndexVal - 1; }
+                       if((nextIndexVal=indexOfendingKanjiOnly_keyTable[ i ]))  { return nextIndexVal - 1; }
+                   }
                }
                return 0;
            }
