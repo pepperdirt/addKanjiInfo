@@ -1,0 +1,35 @@
+Bout completed about what I wanted. Some things I'm thinking...
+
+	- Could still add plenty of information from KanjiDict2 project
+	  non-member functions are already functional, only not used.
+	  Might just add another switch atkin to the '-K' switch and
+	  give it a ton of options for supplying information on Kanji,
+	  like Stroke order, Grade, JLPT level, and such. 
+	
+	-Surprised how well the Furigana function works. Not perfect, there is 
+	 no check for alternate readings(choosing between them), and of course
+	 it only checks for what is in kanjiDict2/Jmdict projects, so not
+	 a complete list of proper nouns(places / other ), which I'd like to 
+	 add also... 
+
+TODO:
+	- Either fix 'Rubify()' member function to return
+	  something other than <ruby></> syntax(WEB), or 
+	  simply write a non-member function inside class to strip
+	  Rubify()'s return value. 
+
+	- Still haven't implemented a NO_OPTIMIZATION for kanjiDict2_InfoClass
+	  May improve speed of lookups( using --input-string switch );
+	
+	- Find what database contains Proper nouns! ( think about adding this)
+
+	- Improve Furiganize(), won't add furigana for a Kanji proceeded
+	  by a little 'tsu' character. 
+	  Need to note other instances of failure...
+	
+	- Still looking for a database of Translations of single terms/words.
+	  Japanese Wordnet does a great job, but it can lean towards being
+	  more general of a definition. I'd like a stronger one, that I would
+	  not have to seek online resources when it falls flat. 
+	  	- Database does not need to have Enlish/other translations.
+		  can be fully Japanese. 
