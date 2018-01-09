@@ -1,5 +1,11 @@
 Bout completed about what I wanted. Some things I'm thinking...
 
+	- *** I may try moving to another project actually.
+	  If anything, I'll might make the Windows Hack, since that's
+	  my main machine. If find another DB, may try to add.
+	  Will also take time to look for bugs(and update code to be complient
+	  with cpp standards... )
+
 	- Could still add plenty of information from KanjiDict2 project
 	  non-member functions are already functional, only not used.
 	  Might just add another switch atkin to the '-K' switch and
